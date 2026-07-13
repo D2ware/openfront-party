@@ -1,0 +1,15 @@
+{
+  "name": "openfront-pre-lobby",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A lightweight, user-controlled group coordinator for choosing OpenFront lobbies.",
+  "scripts": {
+    "start": "node server.cjs",
+    "dev": "node --watch server.cjs",
+    "test": "node --test",
+    "build:pages": "node scripts/build-pages.cjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}

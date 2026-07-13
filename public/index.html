@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenFront — Party Lobby</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="masthead">
+        <a class="brand" href="/" aria-label="OpenFront party lobby home"><span class="brand-mark">›</span>OPENFRONT<span class="brand-mark">‹</span> <i>PARTY LOBBY</i></a>
+        <div class="connection"><span id="connection-dot"></span><span id="connection-label">Connecting</span></div>
+      </header>
+      <section class="intro">
+        <div><p class="eyebrow">ASSEMBLE BEFORE YOU DEPLOY</p><h1>Find the front.<br><em>Move as one.</em></h1></div>
+        <p class="intro-copy">The leader picks a public lobby here. Everyone sees the same choice, then opens the game normally when ready.</p>
+      </section>
+      <section class="rail" aria-label="Party controls">
+        <div class="group-form" id="start-panel">
+          <label>YOUR CALLSIGN <input id="name-input" maxlength="24" placeholder="e.g. Aino" autocomplete="nickname" /></label>
+          <button id="create-button" class="primary">Create party</button>
+          <div class="join-line"><input id="code-input" maxlength="6" placeholder="PARTY CODE" /><button id="join-button" class="quiet">Join</button></div>
+        </div>
+        <div class="group-live hidden" id="group-panel">
+          <div><p class="eyebrow">YOUR PARTY</p><strong id="group-code">------</strong><button id="copy-code" class="copy" title="Copy party code">Copy</button></div>
+          <div id="member-list" class="members"></div>
+          <label class="state-picker">YOUR STATUS<select id="state-select"><option value="ready">Ready</option><option value="opening-game">Opening game</option><option value="in-game">In game</option><option value="left">Left</option><option value="away">Away</option></select></label>
+          <button id="leave-button" class="text-button">Leave party</button>
+        </div>
+        <aside class="selection" id="selection-panel"><p class="eyebrow">LEADER'S PICK</p><p class="empty-selection">No lobby selected yet.</p></aside>
+      </section>
+      <section class="lobby-head"><div><p class="eyebrow">PUBLIC LOBBIES</p><h2>Choose the next front</h2></div><p id="source-note" class="source-note">Demo feed · live adapter pending</p></section>
+      <section id="lobby-grid" class="lobby-grid" aria-live="polite"></section>
+      <section class="party-directory" aria-live="polite"><div class="directory-head"><div><p class="eyebrow">OPEN PARTIES</p><h2>Join a crew already waiting</h2></div><p class="source-note">Live from this relay</p></div><div id="party-list" class="party-list"><p class="directory-empty">No open parties right now. Create the first one.</p></div></section>
+    </main>
+    <div id="toast" class="toast" role="status"></div>
+    <template id="lobby-template"><article class="lobby-card"><div class="card-top"><span class="map-tag"></span><span class="eta"></span></div><div class="terrain"></div><div class="card-body"><p class="lobby-name"></p><p class="lobby-meta"></p><div><span class="server"></span><span class="players"></span></div></div><button class="select-lobby">Select lobby</button></article></template>
+    <script src="/app.js"></script>
+  </body>
+</html>
