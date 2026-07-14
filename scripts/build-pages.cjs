@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { buildExtensions } = require("./build-extensions.cjs");
 
 const root = path.resolve(__dirname, "..");
 const output = path.join(root, "_site");
@@ -20,6 +21,7 @@ function relayOrigin(value) {
 }
 
 const relay = relayOrigin(relayInput);
+const extensions = buildExtensions(relay);
 fs.rmSync(output, { recursive: true, force: true });
 fs.mkdirSync(output, { recursive: true });
 fs.cpSync(path.join(root, "viewer"), path.join(output, "viewer"), {
@@ -30,6 +32,9 @@ fs.copyFileSync(
   path.join(root, "public", "openfront-party-companion.user.js"),
   path.join(output, "openfront-party-companion.user.js"),
 );
+fs.mkdirSync(path.join(output, "extensions"), { recursive: true });
+fs.copyFileSync(extensions.chromePackage, path.join(output, "extensions", "openfront-party-chrome.zip"));
+fs.copyFileSync(extensions.firefoxPackage, path.join(output, "extensions", "openfront-party-firefox.xpi"));
 
 fs.writeFileSync(path.join(output, ".nojekyll"), "");
 fs.writeFileSync(
@@ -37,6 +42,9 @@ fs.writeFileSync(
   `window.OPENFRONT_PARTY_CONFIG = Object.freeze(${JSON.stringify({
     relayOrigin: relay,
     userscriptPath: "../openfront-party-companion.user.js",
+    extensionChromePath: "../extensions/openfront-party-chrome.zip",
+    extensionFirefoxPath: "../extensions/openfront-party-firefox.xpi",
+    companionVersion: extensions.version,
   }, null, 2)});\n`,
 );
 

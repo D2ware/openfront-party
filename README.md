@@ -11,15 +11,26 @@ npm start
 
 Open <http://localhost:3030/viewer/>. Create or join a party. Players can mark **Ready** and open the selected lobby manually without installing anything.
 
-For optional auto-open behavior, install Tampermonkey and open the companion userscript from:
+For automatic launches and match reports, build and install the browser extension:
 
-<http://localhost:3030/openfront-party-companion.user.js>
+```powershell
+npm run build:extensions
+```
+
+The build creates separate Chromium and Firefox packages in `dist/`. The former Tampermonkey userscript remains available temporarily for migration, but the WebExtension is the supported companion.
 
 The relay binds to `127.0.0.1` by default. This keeps port 3030 off other network interfaces and works with an outbound Cloudflare Tunnel. Set `HOST` explicitly only when another local binding is required.
 
 Match History and companion metric icons are from [OpenFrontIO](https://github.com/openfrontio/OpenFrontIO/tree/main/resources/images) and are used under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 
-Choose **Connect OpenFront** after installing it. The viewer creates a one-use, 60-second handoff ticket and opens the official OpenFront page. The userscript claims the ticket and keeps that party member present while the viewer tab is closed.
+Choose **Link OpenFront** after installing it. The viewer creates a one-use, 60-second handoff ticket and opens the official OpenFront page. The extension claims the ticket and keeps that party member present while the viewer tab is closed.
+
+### Install a development build
+
+- Chrome, Edge, Brave and other Chromium browsers: extract `dist/openfront-party-chrome.zip`, open the browser's extensions page, enable Developer mode, choose **Load unpacked**, and select `dist/chrome`.
+- Firefox 128 or newer: open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on**, and select `dist/firefox/manifest.json`. The generated `.xpi` requires Mozilla signing before permanent distribution.
+
+Chrome uses an MV3 service worker. Firefox uses an MV3 background script, a stable Gecko extension ID, and its own AMO data-collection declaration. Both packages share the same companion version and functionality.
 
 ## Party flow
 
@@ -44,7 +55,7 @@ The public lobby feed is an observation, not a reservation. OpenFront remains au
 
 ## GitHub Pages prototype
 
-GitHub Pages hosts only the static viewer and userscript. The Node relay must remain on a separate public HTTPS/WSS origin, such as a Cloudflare Tunnel during testing.
+GitHub Pages hosts the static viewer and browser-extension downloads. The Node relay must remain on a separate public HTTPS/WSS origin, such as a Cloudflare Tunnel during testing.
 
 Build the Pages artifact locally with:
 
@@ -56,7 +67,9 @@ npm run build:pages
 The generated `_site` directory contains:
 
 - `/viewer/` — the lobby viewer configured for the relay;
-- `/openfront-party-companion.user.js` — the optional userscript;
+- `/extensions/openfront-party-chrome.zip` — the Chromium development package;
+- `/extensions/openfront-party-firefox.xpi` — the unsigned Firefox development package;
+- `/openfront-party-companion.user.js` — the temporary migration userscript;
 - `/index.html` — a relative redirect that also works under `username.github.io/repository/`.
 
 The repository includes a `.github/workflows/pages.yml` workflow that deploys pushes to `main` and can also be started manually. Before running it:
@@ -70,16 +83,17 @@ The Discord profile buttons in the viewer header are retained as the original cr
 
 ## Companion behavior
 
-The userscript runs only on `https://openfront.io/*`. It observes the official URL, `body.in-game`, and `win-modal` to report coarse phases. It shows a draggable party panel and navigates to an official game URL only when the user has explicitly selected **Ready for next game**.
+The extension runs only on `https://openfront.io/*`. It observes the official URL and confirmed local game telemetry to report coarse phases. It shows a draggable party panel and navigates to an official game URL only when the user has explicitly selected **Ready for next game**.
 
-Companion 0.4 also records an opt-in match summary. It identifies the local player from OpenFront's game-server `start` message, confirms builds and donations from game-worker updates, and replaces cumulative build and income totals with OpenFront's own final `WinUpdate` statistics. The latest 20 summaries remain in Tampermonkey storage. When the companion is linked to a party, finalized calculated summaries are also uploaded to the relay and shown in **Match history**; raw gameplay messages are never uploaded.
+Companion 0.4 also records an opt-in match summary. It identifies the local player from OpenFront's game-server `start` message, confirms builds and donations from game-worker updates, and replaces cumulative build and income totals with OpenFront's own final `WinUpdate` statistics. The latest 20 summaries remain in browser extension storage. When the companion is linked to a party, finalized calculated summaries are also uploaded to the relay and shown in **Match history**; raw gameplay messages are never uploaded.
 
-For production, deploy the relay behind public HTTPS/WSS and use that origin when opening the viewer. The userscript accepts the relay origin only through the one-use connection fragment.
+For production, deploy the relay behind public HTTPS/WSS and build the extensions for that exact origin. The background script rejects relay requests to origins outside the build manifest.
 
 ## Security boundaries
 
-- The relay and userscript never read or transmit OpenFront cookies, credentials, play tokens, or Turnstile responses.
-- The userscript observes game-server and worker messages locally. It sends only finalized calculated metrics to the relay while linked; the relay supplies the party callsign from the authenticated companion session. Raw gameplay messages, OpenFront credentials, and party codes are not stored in match history.
+- The relay and extension never read or transmit OpenFront cookies, credentials, play tokens, or Turnstile responses.
+- A small `MAIN`-world bridge observes only the OpenFront fields needed for the companion. Party credentials stay in the isolated content script, and cross-origin relay requests are performed by the extension background process.
+- The extension sends only party state and finalized calculated metrics to the configured relay while linked; raw gameplay messages, OpenFront credentials, and party codes are not stored in match history.
 - Companion credentials are random bearer tokens; only their SHA-256 hashes are retained by the relay.
 - Handoff tickets are one-use and expire after 60 seconds.
 - Join commands contain only a worker, game ID, round ID, and short expiry.

@@ -31,7 +31,8 @@
     filterSummary: byId("partyFilterSummary"),
     editFilters: byId("partyEditFilters"),
     companionStatus: byId("partyCompanionStatus"),
-    installCompanion: byId("partyInstallCompanion"),
+    installChrome: byId("partyInstallChrome"),
+    installFirefox: byId("partyInstallFirefox"),
     connectOpenFront: byId("partyConnectOpenFront"),
     readyLine: byId("partyReadyLine"),
     readyStatus: byId("partyReadyStatus"),
@@ -87,9 +88,8 @@
   const relayHttpOrigin = httpOrigin(deploymentConfig.relayOrigin || window.OPENFRONT_PARTY_RELAY_ORIGIN);
   const relayUrl = relayHttpOrigin.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
   const viewerUrl = new URL("./", location.href).href;
-  if (el.installCompanion) {
-    el.installCompanion.href = new URL(deploymentConfig.userscriptPath || "../openfront-party-companion.user.js", location.href).href;
-  }
+  if (el.installChrome) el.installChrome.href = new URL(deploymentConfig.extensionChromePath || "../extensions/openfront-party-chrome.zip", location.href).href;
+  if (el.installFirefox) el.installFirefox.href = new URL(deploymentConfig.extensionFirefoxPath || "../extensions/openfront-party-firefox.xpi", location.href).href;
 
   const stateLabels = {
     watching: "Watching lobby board",
@@ -274,7 +274,7 @@
           "party-viewer": viewerUrl,
         }).toString();
         if (pendingCompanionWindow && !pendingCompanionWindow.closed) pendingCompanionWindow.location.href = target.href;
-        else showToast("Popup blocked", "Allow popups, then choose Connect OpenFront again.", "warning");
+        else showToast("Popup blocked", "Allow popups, then choose Link OpenFront again.", "warning");
         pendingCompanionWindow = null;
         showToast("Companion link ready", "OpenFront will bind this browser to your party.", "success");
         return;
@@ -727,8 +727,8 @@
       el.openLaunch.textContent = launchedWithParty ? "Open lobby" : "Open lobby anyway";
     }
     el.companionStatus.textContent = current.companionConnected
-      ? `Userscript linked · ${stateLabels[current.phase] || current.phase}`
-      : "Optional. Install the userscript to make an OpenFront tab follow launches.";
+      ? `Extension linked · ${stateLabels[current.phase] || current.phase}`
+      : "Install the Chrome or Firefox extension to follow launches and report matches.";
     el.connectOpenFront.textContent = current.companionConnected ? "Relink OpenFront" : "Link OpenFront";
     const ready = current.phase === "ready";
     const canSetReady = ["watching", "finished", "failed", "ready"].includes(current.phase);

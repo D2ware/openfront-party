@@ -8,6 +8,7 @@ const PORT = Number(process.env.PORT || 3030);
 const HOST = process.env.HOST || "127.0.0.1";
 const PUBLIC_DIR = path.join(__dirname, "public");
 const VIEWER_DIR = path.join(__dirname, "viewer");
+const EXTENSIONS_DIR = path.join(__dirname, "dist");
 const MAX_MESSAGE_BYTES = 8 * 1024;
 const MAX_HTTP_BODY_BYTES = 16 * 1024;
 const HEARTBEAT_MS = 25_000;
@@ -120,8 +121,9 @@ function serveFile(req, res) {
   const requested = req.url === "/" ? "/index.html" : req.url.split("?")[0];
   if (requested === "/viewer") { res.writeHead(302, { Location: "/viewer/" }); res.end(); return; }
   const isViewer = requested.startsWith("/viewer/");
-  const root = isViewer ? VIEWER_DIR : PUBLIC_DIR;
-  const relativePath = isViewer ? requested.slice("/viewer".length) : requested;
+  const isExtension = requested.startsWith("/extensions/");
+  const root = isViewer ? VIEWER_DIR : isExtension ? EXTENSIONS_DIR : PUBLIC_DIR;
+  const relativePath = isViewer ? requested.slice("/viewer".length) : isExtension ? requested.slice("/extensions".length) : requested;
   const relative = relativePath === "/" ? "/index.html" : relativePath;
   const file = path.normalize(path.join(root, relative));
   if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
@@ -131,6 +133,8 @@ function serveFile(req, res) {
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
     ".css": "text/css; charset=utf-8",
+    ".zip": "application/zip",
+    ".xpi": "application/x-xpinstall",
   };
   res.writeHead(200, { "Content-Type": types[path.extname(file)] || "application/octet-stream", "Cache-Control": "no-store" });
   fs.createReadStream(file).pipe(res);

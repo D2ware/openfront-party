@@ -2646,6 +2646,9 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
 .partyCompanionActions button { width: auto; min-width: 130px; padding: 9px 11px; border: 1px solid var(--border2); border-radius: var(--r-sm); color: var(--text); background: var(--surface2); font: 800 10px var(--font-sans); text-align: center; text-decoration: none; }
 .partyCompanionActions a:hover,
 .partyCompanionActions button:hover { border-color: rgba(98, 176, 255, 0.58); background: rgba(36, 63, 91, 0.9); }
+.partyExtensionDownloads a { position: relative; padding-left: 27px; }
+.partyExtensionDownloads a::before { position: absolute; top: 50%; left: 10px; width: 10px; height: 10px; border: 2px solid currentColor; border-radius: 50%; content: ""; transform: translateY(-50%); opacity: 0.72; }
+.partyExtensionDownloads a[data-browser="Firefox"]::before { border-color: #ff9b52; box-shadow: inset 0 0 0 2px var(--surface2); }
 
 .partyLaunchDialog {
   width: min(560px, calc(100% - 28px));
