@@ -28,6 +28,9 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.match(partyClient, /send\("member\.state", \{ state: next \}\)/);
   assert.match(partyClient, /Open the lobby manually/);
   assert.doesNotMatch(partyClient, /Needs companion/);
+  assert.match(partyClient, /openfront\.io\$\{workerPath\}\/game/);
+  assert.match(partyClient, /location\.assign\(officialGameUrl\(launch\.lobby\)\)/);
+  assert.match(partyClient, /current\.companionConnected/);
   assert.match(rootHtml, /\.\/viewer\//);
   assert.doesNotMatch(viewerHtml, /(?:href|src)="\//);
   assert.equal(fs.existsSync(path.join(output, "viewer", ".git")), false);

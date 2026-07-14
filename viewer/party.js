@@ -65,6 +65,7 @@
   const lobbySamples = new Map();
   const acknowledgedRequestIds = new Set();
   const resumeStorageKey = "openfront-party-resume-token";
+  const openedLaunchStorageKey = "openfront-party-opened-launch";
 
   const savedName = localStorage.getItem("openfront-party-name");
   if (savedName) el.name.value = savedName;
@@ -132,6 +133,24 @@
       server: worker,
       startsAt: game?.startsAt == null ? null : Number(game.startsAt),
     };
+  }
+
+  function officialGameUrl(lobby) {
+    const workerPath = lobby?.server ? `/${encodeURIComponent(lobby.server)}` : "";
+    return `https://openfront.io${workerPath}/game/${encodeURIComponent(lobby?.id || "")}`;
+  }
+
+  function openUnlinkedLaunch(before, after) {
+    const launch = after?.currentLaunch;
+    if (!launch || before?.currentLaunch?.roundId === launch.roundId) return;
+    const current = after.members.find((member) => member.id === session?.clientId);
+    if (!current || current.companionConnected || !launch.participantIds?.includes(current.id)) return;
+
+    const launchKey = `${after.code}:${launch.roundId}`;
+    if (localStorage.getItem(openedLaunchStorageKey) === launchKey) return;
+    localStorage.setItem(openedLaunchStorageKey, launchKey);
+    showToast("Opening selected lobby", `${launch.lobby.name || "OpenFront"} will open in this tab.`, "success");
+    setTimeout(() => location.assign(officialGameUrl(launch.lobby)), 300);
   }
 
   function createText(parent, tag, value, className = "") {
@@ -234,7 +253,7 @@
       }
 
       if (message.type === "launch.accepted") {
-        showToast("Party launch started", `${message.participants} ready member${message.participants === 1 ? "" : "s"} can open the selected lobby.`, "success");
+        showToast("Party launch started", `Opening the selected lobby for ${message.participants} ready member${message.participants === 1 ? "" : "s"}.`, "success");
         return;
       }
 
@@ -267,6 +286,7 @@
         syncFilterPreference();
         publishLobbyObservation();
         render();
+        openUnlinkedLaunch(previousRoom, room);
         if (reopenAfterSelection && room.selectedLobby) {
           reopenAfterSelection = false;
           toggleModal(true);
@@ -512,7 +532,7 @@
 
     if ((chosen || launched) && ["open", "other-server", "checking"].includes(availability.state)) {
       const open = document.createElement("a");
-      open.href = `https://openfront.io/game/${encodeURIComponent(active.id)}`;
+      open.href = officialGameUrl(active);
       open.target = "_blank";
       open.rel = "noreferrer";
       open.textContent = "Open lobby";
@@ -823,7 +843,7 @@
             return;
           }
           send("member.state", { state: "opening-game" });
-          window.open(`https://openfront.io/game/${encodeURIComponent(game.id)}`, "_blank", "noreferrer");
+          window.open(officialGameUrl(toLobby(game)), "_blank", "noreferrer");
         });
         card.querySelector(".gameCardInfo")?.append(join);
       }
