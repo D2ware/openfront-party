@@ -27,11 +27,16 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.match(viewerHtml, /src="config\.js\?v=[a-f0-9]{12}"/);
   assert.match(viewerHtml, /src="party\.js\?v=[a-f0-9]{12}"/);
   assert.match(partyClient, /send\("member\.state", \{ state: next \}\)/);
-  assert.match(partyClient, /Open the lobby manually/);
+  assert.match(partyClient, /OpenFront tab will follow the party launch/);
   assert.doesNotMatch(partyClient, /Needs companion/);
   assert.match(partyClient, /openfront\.io\/game\/\$\{encodeURIComponent\(lobby\?\.id/);
-  assert.match(partyClient, /location\.assign\(officialGameUrl\(launch\.lobby\)\)/);
+  assert.match(partyClient, /openFrontWindowName = "openfront-party-game"/);
+  assert.match(partyClient, /prepareOpenFrontWindow\(\)/);
+  assert.match(partyClient, /openFrontWindow\.location\.href = url/);
+  assert.doesNotMatch(partyClient, /window\.open\("", openFrontWindowName\)/);
+  assert.doesNotMatch(partyClient, /location\.assign\(officialGameUrl\(launch\.lobby\)\)/);
   assert.match(partyClient, /current\.companionConnected/);
+  assert.match(viewerHtml, /OPENFRONT_PARTY_OPENFRONT_WINDOW = window\.open\(card\.dataset\.joinUrl, "openfront-party-game"\)/);
   assert.match(companion, /openfront\.io\/game\/\$\{encodeURIComponent\(event\.gameId\)\}/);
   assert.doesNotMatch(companion, /openfront\.io\/\$\{encodeURIComponent\(event\.worker\)\}\/game/);
   assert.match(rootHtml, /\.\/viewer\//);

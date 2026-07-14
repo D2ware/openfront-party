@@ -900,7 +900,7 @@
         const openCard = (e) => {
           const card = e.target.closest(".gameCard[data-join-url]");
           if (!card) return;
-          window.open(card.dataset.joinUrl, "_blank", "noopener,noreferrer");
+          window.OPENFRONT_PARTY_OPENFRONT_WINDOW = window.open(card.dataset.joinUrl, "openfront-party-game");
         };
 
         els.cardGrid.addEventListener("click", openCard);
@@ -1288,7 +1288,7 @@
       
           n.onclick = () => {
             window.focus();
-            if (first?.id) window.open(getJoinUrl(first.id), "_blank", "noreferrer");
+            if (first?.id) window.OPENFRONT_PARTY_OPENFRONT_WINDOW = window.open(getJoinUrl(first.id), "openfront-party-game");
             n.close();
           };
         } catch {}

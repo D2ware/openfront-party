@@ -62,10 +62,12 @@
   let lastObservationAt = 0;
   let lastObservationSignature = "";
   let pendingCompanionWindow = null;
+  let openFrontWindow = window.OPENFRONT_PARTY_OPENFRONT_WINDOW || null;
   const lobbySamples = new Map();
   const acknowledgedRequestIds = new Set();
   const resumeStorageKey = "openfront-party-resume-token";
   const openedLaunchStorageKey = "openfront-party-opened-launch";
+  const openFrontWindowName = "openfront-party-game";
 
   const savedName = localStorage.getItem("openfront-party-name");
   if (savedName) el.name.value = savedName;
@@ -139,6 +141,24 @@
     return `https://openfront.io/game/${encodeURIComponent(lobby?.id || "")}`;
   }
 
+  function prepareOpenFrontWindow() {
+    if (openFrontWindow && !openFrontWindow.closed) return true;
+    openFrontWindow = window.open("https://openfront.io/", openFrontWindowName);
+    if (!openFrontWindow) return false;
+    window.OPENFRONT_PARTY_OPENFRONT_WINDOW = openFrontWindow;
+    return true;
+  }
+
+  function navigateOpenFrontWindow(lobby) {
+    const url = officialGameUrl(lobby);
+    if (!openFrontWindow || openFrontWindow.closed) openFrontWindow = window.open(url, openFrontWindowName);
+    if (!openFrontWindow) return false;
+    openFrontWindow.location.href = url;
+    window.OPENFRONT_PARTY_OPENFRONT_WINDOW = openFrontWindow;
+    openFrontWindow.focus();
+    return true;
+  }
+
   function openUnlinkedLaunch(before, after) {
     const launch = after?.currentLaunch;
     if (!launch || before?.currentLaunch?.roundId === launch.roundId) return;
@@ -147,9 +167,12 @@
 
     const launchKey = `${after.code}:${launch.roundId}`;
     if (localStorage.getItem(openedLaunchStorageKey) === launchKey) return;
+    if (!navigateOpenFrontWindow(launch.lobby)) {
+      showToast("OpenFront tab blocked", "Allow popups, mark yourself not ready, then mark Ready again.", "warning");
+      return;
+    }
     localStorage.setItem(openedLaunchStorageKey, launchKey);
-    showToast("Opening selected lobby", `${launch.lobby.name || "OpenFront"} will open in this tab.`, "success");
-    setTimeout(() => location.assign(officialGameUrl(launch.lobby)), 300);
+    showToast("Opening selected lobby", `${launch.lobby.name || "OpenFront"} is opening in the OpenFront tab.`, "success");
   }
 
   function createText(parent, tag, value, className = "") {
@@ -691,7 +714,7 @@
     el.readyToggle.disabled = !canSetReady;
     el.readyToggle.textContent = ready ? "Set not ready" : canSetReady ? "I'm ready" : "In current game";
     el.readyStatus.textContent = ready
-      ? (current.companionConnected ? "Ready. Companion can auto-open the lobby." : "Ready. Open the lobby manually when the party launches.")
+      ? (current.companionConnected ? "Ready. Companion can auto-open the lobby." : "Ready. The OpenFront tab will follow the party launch.")
       : canSetReady ? "Not ready for the next lobby." : `${stateLabels[current.phase] || current.phase} — finish before marking Ready.`;
     document.querySelectorAll("[data-room-mode]").forEach((button) => {
       const selected = button.dataset.roomMode === room.decisionMode;
@@ -842,7 +865,8 @@
             return;
           }
           send("member.state", { state: "opening-game" });
-          window.open(officialGameUrl(toLobby(game)), "_blank", "noreferrer");
+          openFrontWindow = window.open(officialGameUrl(toLobby(game)), openFrontWindowName);
+          window.OPENFRONT_PARTY_OPENFRONT_WINDOW = openFrontWindow;
         });
         card.querySelector(".gameCardInfo")?.append(join);
       }
@@ -982,9 +1006,10 @@
     const current = me();
     if (!current || !["watching", "finished", "failed", "ready"].includes(current.phase)) return;
     const next = current.phase === "ready" ? "watching" : "ready";
+    const tabReady = next !== "ready" || current.companionConnected || prepareOpenFrontWindow();
     if (send("member.state", { state: next })) {
       showToast(next === "ready" ? "Marked Ready" : "Marked not ready", next === "ready"
-        ? (current.companionConnected ? "You can be included in the next launch." : "You can open the lobby manually when the party launches.")
+        ? (current.companionConnected ? "You can be included in the next launch." : tabReady ? "The OpenFront tab is ready for the party launch." : "Allow popups, then mark yourself not ready and Ready again.")
         : "You will not be included until you mark Ready again.", next === "ready" ? "success" : "info");
     }
   });
