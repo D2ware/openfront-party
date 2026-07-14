@@ -703,9 +703,9 @@
     el.settingsSummary.textContent = `${room.isPublic ? "Listed" : "Private"} · ${room.decisionMode === "democracy" ? "Democracy" : "Dictator"}`;
     el.filterSummary.textContent = currentFilterPreference.summary;
     el.companionStatus.textContent = current.companionConnected
-      ? `Optional auto-open connected · ${stateLabels[current.phase] || current.phase}`
-      : "Optional. Ready players can also open lobbies manually.";
-    el.connectOpenFront.textContent = current.companionConnected ? "Reconnect OpenFront" : "Connect OpenFront";
+      ? `Userscript linked · ${stateLabels[current.phase] || current.phase}`
+      : "Optional. Install the userscript to make an OpenFront tab follow launches.";
+    el.connectOpenFront.textContent = current.companionConnected ? "Relink OpenFront" : "Link OpenFront";
     const ready = current.phase === "ready";
     const canSetReady = ["watching", "finished", "failed", "ready"].includes(current.phase);
     el.readyLine.classList.toggle("is-ready", ready);
@@ -714,7 +714,7 @@
     el.readyToggle.disabled = !canSetReady;
     el.readyToggle.textContent = ready ? "Set not ready" : canSetReady ? "I'm ready" : "In current game";
     el.readyStatus.textContent = ready
-      ? (current.companionConnected ? "Ready. Companion can auto-open the lobby." : "Ready. The OpenFront tab will follow the party launch.")
+      ? "Ready. You will be included in the next launch."
       : canSetReady ? "Not ready for the next lobby." : `${stateLabels[current.phase] || current.phase} — finish before marking Ready.`;
     document.querySelectorAll("[data-room-mode]").forEach((button) => {
       const selected = button.dataset.roomMode === room.decisionMode;
@@ -797,6 +797,10 @@
     launch.addEventListener("click", () => {
       const attendance = dialog.querySelector("input[name='partyAttendance']:checked")?.value || "all";
       const lobby = toLobby(game);
+      if (!me()?.companionConnected && !prepareOpenFrontWindow()) {
+        showToast("OpenFront tab blocked", "Allow popups, then choose Launch party again.", "warning");
+        return;
+      }
       send("member.observe_lobby", { lobby, observedAt: Date.now() });
       send("leader.launch", {
         attendance,
@@ -846,7 +850,7 @@
       if (room.decisionMode === "democracy") createText(intent, "span", `Votes ${voteCount}/${room.members.length}`, "partyIntentBadge votes");
       if (voteCount || activeLobbyId === card.dataset.gameId) {
         const windowState = joinWindow(game);
-        createText(intent, "span", windowState.label, `partyIntentBadge window ${windowState.tone}`);
+        if (windowState.tone !== "stable") createText(intent, "span", windowState.label, `partyIntentBadge window ${windowState.tone}`);
       }
       card.querySelector(".gameCardImage")?.append(intent);
       if (room.hoveredLobbyId === card.dataset.gameId) card.classList.add("partyLeaderHover");
@@ -1006,10 +1010,9 @@
     const current = me();
     if (!current || !["watching", "finished", "failed", "ready"].includes(current.phase)) return;
     const next = current.phase === "ready" ? "watching" : "ready";
-    const tabReady = next !== "ready" || current.companionConnected || prepareOpenFrontWindow();
     if (send("member.state", { state: next })) {
       showToast(next === "ready" ? "Marked Ready" : "Marked not ready", next === "ready"
-        ? (current.companionConnected ? "You can be included in the next launch." : tabReady ? "The OpenFront tab is ready for the party launch." : "Allow popups, then mark yourself not ready and Ready again.")
+        ? "You will be included in the next launch."
         : "You will not be included until you mark Ready again.", next === "ready" ? "success" : "info");
     }
   });
