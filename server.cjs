@@ -442,10 +442,10 @@ function launchParty(member, message) {
     return sendError(member, "That lobby is starting too soon for a coordinated launch.");
   }
 
-  const readyMembers = [...room.members].filter((item) => item.phase === "ready" && isCompanionFresh(item));
-  if (!readyMembers.length) return sendError(member, "No party members are Ready with a connected companion.");
+  const readyMembers = [...room.members].filter((item) => item.phase === "ready");
+  if (!readyMembers.length) return sendError(member, "No party members are Ready.");
   if (attendance === "all" && readyMembers.length !== room.members.size) {
-    return sendError(member, "Some members are still playing, not Ready, or missing the companion. Choose Launch ready members to split the party.");
+    return sendError(member, "Some members are still playing or not Ready. Choose Launch ready members to split the party.");
   }
 
   const participants = attendance === "all" ? [...room.members] : readyMembers;

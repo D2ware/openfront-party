@@ -23,7 +23,8 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.match(viewerHtml, /id="partyReadyToggle"/);
   assert.match(viewerHtml, /id="partyReadyStatus"/);
   assert.match(partyClient, /send\("member\.state", \{ state: next \}\)/);
-  assert.match(partyClient, /Needs companion/);
+  assert.match(partyClient, /Open the lobby manually/);
+  assert.doesNotMatch(partyClient, /Needs companion/);
   assert.match(rootHtml, /\.\/viewer\//);
   assert.doesNotMatch(viewerHtml, /(?:href|src)="\//);
   assert.equal(fs.existsSync(path.join(output, "viewer", ".git")), false);

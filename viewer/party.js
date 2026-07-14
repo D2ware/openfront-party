@@ -234,7 +234,7 @@
       }
 
       if (message.type === "launch.accepted") {
-        showToast("Party launch sent", `${message.participants} ready member${message.participants === 1 ? "" : "s"} received the join command.`, "success");
+        showToast("Party launch started", `${message.participants} ready member${message.participants === 1 ? "" : "s"} can open the selected lobby.`, "success");
         return;
       }
 
@@ -424,14 +424,15 @@
   function renderPick() {
     el.selected.replaceChildren();
     el.selected.className = "partySection partyPick";
+    const launched = room?.currentLaunch?.lobby;
     const chosen = room?.selectedLobby;
     const democracy = room?.decisionMode === "democracy";
     const voteLeader = democracy ? leadingVote() : null;
     const previewGame = !democracy && room?.hoveredLobbyId
       ? lastGames.find((game) => String(game.id) === String(room.hoveredLobbyId))
       : null;
-    const active = chosen || voteLeader?.lobby || (previewGame ? toLobby(previewGame) : null);
-    const label = democracy ? (chosen ? "Party choice" : "Democracy vote") : (chosen ? "Leader's pick" : previewGame ? "Leader preview" : "Leader's pick");
+    const active = launched || chosen || voteLeader?.lobby || (previewGame ? toLobby(previewGame) : null);
+    const label = launched ? "Current launch" : democracy ? (chosen ? "Party choice" : "Democracy vote") : (chosen ? "Leader's pick" : previewGame ? "Leader preview" : "Leader's pick");
     createText(el.selected, "div", label, "groupLabel");
 
     if (!active) {
@@ -449,7 +450,7 @@
       return;
     }
 
-    const availability = chosen ? lobbyAvailability(chosen) : democracy
+    const availability = launched ? lobbyAvailability(launched) : chosen ? lobbyAvailability(chosen) : democracy
       ? { state: "preview", label: `${voteLeader.count}/${room.members.length} votes`, live: lastGames.find((game) => String(game.id) === String(active.id)) }
       : { state: "preview", label: "Previewing", live: previewGame };
     el.selected.classList.add(`is-${availability.state}`);
@@ -466,14 +467,14 @@
     const actions = document.createElement("div");
     actions.className = "partyPickActions";
 
-    if (democracy) {
+    if (democracy && !launched) {
       const vote = document.createElement("button");
       vote.type = "button";
       vote.className = "partySecondaryAction";
       vote.textContent = "Browse and vote";
       vote.addEventListener("click", startLobbySelection);
       actions.append(vote);
-    } else if (isLeader()) {
+    } else if (isLeader() && !launched) {
       if (!chosen && previewGame) {
         const select = document.createElement("button");
         select.type = "button";
@@ -487,7 +488,7 @@
       change.textContent = chosen ? "Change lobby" : "Browse lobby board";
       change.addEventListener("click", startLobbySelection);
       actions.append(change);
-    } else if (chosen) {
+    } else if (chosen && !launched) {
       const request = document.createElement("button");
       request.type = "button";
       request.textContent = me()?.state === "wants-to-join" ? "Leader notified" : "Notify leader I'm joining";
@@ -500,7 +501,7 @@
       actions.append(request);
     }
 
-    if (democracy && chosen && !isLeader()) {
+    if (democracy && chosen && !launched && !isLeader()) {
       const request = document.createElement("button");
       request.type = "button";
       request.textContent = me()?.state === "wants-to-join" ? "Party notified" : "I'm joining";
@@ -509,9 +510,9 @@
       actions.append(request);
     }
 
-    if (chosen && ["open", "other-server", "checking"].includes(availability.state)) {
+    if ((chosen || launched) && ["open", "other-server", "checking"].includes(availability.state)) {
       const open = document.createElement("a");
-      open.href = `https://openfront.io/game/${encodeURIComponent(chosen.id)}`;
+      open.href = `https://openfront.io/game/${encodeURIComponent(active.id)}`;
       open.target = "_blank";
       open.rel = "noreferrer";
       open.textContent = "Open lobby";
@@ -571,11 +572,9 @@
       createText(identity, "span", `${role} · ${stateLabels[member.phase] || member.phase}`);
       const badges = document.createElement("div");
       badges.className = "partyMemberBadges";
-      const launchable = member.phase === "ready" && member.companionConnected;
-      const readiness = member.phase === "ready"
-        ? (member.companionConnected ? "Launchable" : "Needs companion")
-        : "Not ready";
-      createText(badges, "span", readiness, `partyMemberLaunchState${launchable ? " is-launchable" : member.phase === "ready" ? " needs-companion" : ""}`);
+      const ready = member.phase === "ready";
+      const readiness = ready ? (member.companionConnected ? "Ready + auto" : "Ready") : "Not ready";
+      createText(badges, "span", readiness, `partyMemberLaunchState${ready ? " is-launchable" : ""}`);
       const preference = createText(badges, "span", member.filterPreference?.summary || "All public lobbies", "partyMemberPreference");
       preference.title = member.filterPreference?.summary || "All public lobbies";
       card.prepend(dot, identity);
@@ -662,18 +661,18 @@
     el.settingsSummary.textContent = `${room.isPublic ? "Listed" : "Private"} · ${room.decisionMode === "democracy" ? "Democracy" : "Dictator"}`;
     el.filterSummary.textContent = currentFilterPreference.summary;
     el.companionStatus.textContent = current.companionConnected
-      ? `Connected · ${stateLabels[current.phase] || current.phase}`
-      : "Not linked on this browser yet.";
+      ? `Optional auto-open connected · ${stateLabels[current.phase] || current.phase}`
+      : "Optional. Ready players can also open lobbies manually.";
     el.connectOpenFront.textContent = current.companionConnected ? "Reconnect OpenFront" : "Connect OpenFront";
     const ready = current.phase === "ready";
     const canSetReady = ["watching", "finished", "failed", "ready"].includes(current.phase);
     el.readyLine.classList.toggle("is-ready", ready);
-    el.readyLine.classList.toggle("is-launchable", ready && current.companionConnected);
+    el.readyLine.classList.toggle("is-launchable", ready);
     el.readyToggle.setAttribute("aria-pressed", String(ready));
     el.readyToggle.disabled = !canSetReady;
     el.readyToggle.textContent = ready ? "Set not ready" : canSetReady ? "I'm ready" : "In current game";
     el.readyStatus.textContent = ready
-      ? (current.companionConnected ? "Ready and linked — you can launch." : "Ready — connect the companion to launch.")
+      ? (current.companionConnected ? "Ready. Companion can auto-open the lobby." : "Ready. Open the lobby manually when the party launches.")
       : canSetReady ? "Not ready for the next lobby." : `${stateLabels[current.phase] || current.phase} — finish before marking Ready.`;
     document.querySelectorAll("[data-room-mode]").forEach((button) => {
       const selected = button.dataset.roomMode === room.decisionMode;
@@ -695,10 +694,9 @@
   function showLaunchDialog(game) {
     if (!room || !isLeader()) return;
     document.querySelector(".partyLaunchDialog")?.remove();
-    const readyMembers = room.members.filter((member) => member.phase === "ready" && member.companionConnected);
-    const missingCompanion = room.members.filter((member) => member.phase === "ready" && !member.companionConnected);
+    const readyMembers = room.members.filter((member) => member.phase === "ready");
     const notReadyMembers = room.members.filter((member) => member.phase !== "ready");
-    const waitingMembers = [...missingCompanion, ...notReadyMembers];
+    const waitingMembers = notReadyMembers;
     const telemetry = joinTelemetry(game);
     const dialog = document.createElement("dialog");
     dialog.className = "partyLaunchDialog";
@@ -710,24 +708,20 @@
     groups.className = "partyLaunchGroups";
     const ready = document.createElement("section");
     ready.className = "is-launchable";
-    createText(ready, "strong", `Launchable · ${readyMembers.length}`);
-    createText(ready, "span", readyMembers.map((member) => member.name).join(", ") || "Nobody can launch yet");
-    const unlinked = document.createElement("section");
-    unlinked.className = "needs-companion";
-    createText(unlinked, "strong", `Needs companion · ${missingCompanion.length}`);
-    createText(unlinked, "span", missingCompanion.map((member) => member.name).join(", ") || "No missing links");
+    createText(ready, "strong", `Ready · ${readyMembers.length}`);
+    createText(ready, "span", readyMembers.map((member) => member.name).join(", ") || "Nobody is ready yet");
     const waiting = document.createElement("section");
     createText(waiting, "strong", `Not ready · ${notReadyMembers.length}`);
     createText(waiting, "span", notReadyMembers.map((member) => member.name).join(", ") || "Everyone marked Ready");
-    groups.append(ready, unlinked, waiting);
+    groups.append(ready, waiting);
     dialog.append(groups);
 
     const choices = document.createElement("div");
     choices.className = "partyLaunchChoices";
     const allChoice = document.createElement("label");
-    allChoice.innerHTML = `<input type="radio" name="partyAttendance" value="all" checked><span><strong>Launch everyone together</strong><small>Available when every member is Ready and linked.</small></span>`;
+    allChoice.innerHTML = `<input type="radio" name="partyAttendance" value="all" checked><span><strong>Launch everyone together</strong><small>Available when every member is Ready.</small></span>`;
     const readyChoice = document.createElement("label");
-    readyChoice.innerHTML = `<input type="radio" name="partyAttendance" value="ready"><span><strong>Launch ready members</strong><small>Launch only Ready + Companion members; notify everyone left behind.</small></span>`;
+    readyChoice.innerHTML = `<input type="radio" name="partyAttendance" value="ready"><span><strong>Launch ready members</strong><small>Launch only Ready members; notify everyone left behind.</small></span>`;
     choices.append(allChoice, readyChoice);
     dialog.append(choices);
 
@@ -751,9 +745,7 @@
           ? `Launch ${room.members.length} player${room.members.length === 1 ? "" : "s"}`
           : `Launch ${readyMembers.length} ready player${readyMembers.length === 1 ? "" : "s"}`;
       warning.textContent = waitingForAll
-        ? missingCompanion.length
-          ? `${missingCompanion.length} Ready member${missingCompanion.length === 1 ? " needs" : "s need"} the companion. ${notReadyMembers.length ? `${notReadyMembers.length} still not Ready. ` : ""}Choose Launch ready members to leave them behind.`
-          : `${notReadyMembers.length} member${notReadyMembers.length === 1 ? " is" : "s are"} not Ready. Choose Launch ready members to leave them behind.`
+        ? `${notReadyMembers.length} member${notReadyMembers.length === 1 ? " is" : "s are"} not Ready. Choose Launch ready members to leave them behind.`
         : attendance === "ready" && waitingMembers.length
           ? `${waitingMembers.length} member${waitingMembers.length === 1 ? "" : "s"} will receive a PARTY MOVED notification.`
           : telemetry.tone === "blocked" ? "This lobby does not have a safe join window." : "Everyone can launch together.";
@@ -794,6 +786,8 @@
 
     const scores = preferenceScores();
     const votes = voteTallies();
+    const activeLobbyId = String(room.currentLaunch?.lobby?.id || room.selectedLobby?.id || "");
+    const activeLaunchId = String(room.currentLaunch?.lobby?.id || "");
     for (const card of document.querySelectorAll(".gameCard[data-game-id]")) {
       const game = lastGames.find((item) => String(item.id) === card.dataset.gameId);
       if (!game) continue;
@@ -808,23 +802,28 @@
       const match = createText(intent, "span", `Match ${count}/${room.members.length}`, `partyIntentBadge match ${mode}`);
       match.title = `${count} of ${room.members.length} party members include this lobby in their filters`;
       if (room.decisionMode === "democracy") createText(intent, "span", `Votes ${voteCount}/${room.members.length}`, "partyIntentBadge votes");
-      if (voteCount || room.selectedLobby?.id === card.dataset.gameId) {
+      if (voteCount || activeLobbyId === card.dataset.gameId) {
         const windowState = joinWindow(game);
         createText(intent, "span", windowState.label, `partyIntentBadge window ${windowState.tone}`);
       }
       card.querySelector(".gameCardImage")?.append(intent);
       if (room.hoveredLobbyId === card.dataset.gameId) card.classList.add("partyLeaderHover");
-      card.classList.toggle("partySelectedLobby", room.selectedLobby?.id === card.dataset.gameId);
-      if (room.selectedLobby?.id === card.dataset.gameId) {
+      card.classList.toggle("partySelectedLobby", activeLobbyId === card.dataset.gameId);
+      if (activeLobbyId === card.dataset.gameId) {
         const join = document.createElement("button");
         join.type = "button";
         join.className = "partyCardJoin";
-        join.textContent = isLeader() ? "Launch party" : "Party selected";
-        join.disabled = !isLeader();
+        const canConfirmLaunch = isLeader() && activeLaunchId !== card.dataset.gameId;
+        join.textContent = canConfirmLaunch ? "Launch party" : "Open lobby";
         join.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          if (isLeader()) showLaunchDialog(game);
+          if (canConfirmLaunch) {
+            showLaunchDialog(game);
+            return;
+          }
+          send("member.state", { state: "opening-game" });
+          window.open(`https://openfront.io/game/${encodeURIComponent(game.id)}`, "_blank", "noreferrer");
         });
         card.querySelector(".gameCardInfo")?.append(join);
       }
@@ -966,7 +965,7 @@
     const next = current.phase === "ready" ? "watching" : "ready";
     if (send("member.state", { state: next })) {
       showToast(next === "ready" ? "Marked Ready" : "Marked not ready", next === "ready"
-        ? (current.companionConnected ? "You can be included in the next launch." : "Connect the companion before the party launches.")
+        ? (current.companionConnected ? "You can be included in the next launch." : "You can open the lobby manually when the party launches.")
         : "You will not be included until you mark Ready again.", next === "ready" ? "success" : "info");
     }
   });

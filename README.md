@@ -9,7 +9,9 @@ npm install
 npm start
 ```
 
-Open <http://localhost:3030/viewer/>. Create or join a party, install Tampermonkey, and use **Install userscript** in the Party panel to install the companion from:
+Open <http://localhost:3030/viewer/>. Create or join a party. Players can mark **Ready** and open the selected lobby manually without installing anything.
+
+For optional auto-open behavior, install Tampermonkey and open the companion userscript from:
 
 <http://localhost:3030/openfront-party-companion.user.js>
 
@@ -31,8 +33,8 @@ Choose **Connect OpenFront** after installing it. The viewer creates a one-use, 
 1. The viewer reads OpenFront's public `/{worker}/lobbies` WebSocket feed.
 2. The leader's viewer sends a current observation of the selected lobby to the relay.
 3. The relay accepts a launch only while that observation is fresh, the lobby has room and its start is not imminent.
-4. Only members who are both **Ready** and connected through the companion receive `join.command`.
-5. The companion navigates to OpenFront's official `/{worker}/game/{gameId}` URL.
+4. Members marked **Ready** are included in the launch; connected companions also receive `join.command`.
+5. Ready members can open OpenFront's official `/{worker}/game/{gameId}` URL manually, or let the companion navigate there when connected.
 6. OpenFront performs its own lobby existence, capacity, authentication and Turnstile checks.
 7. The companion reports `in_lobby` only after OpenFront has received lobby information with the member's client ID, or `in_game` after `body.in-game` appears.
 
@@ -52,7 +54,7 @@ npm run build:pages
 The generated `_site` directory contains:
 
 - `/viewer/` — the lobby viewer configured for the relay;
-- `/openfront-party-companion.user.js` — the installable userscript;
+- `/openfront-party-companion.user.js` — the optional userscript;
 - `/index.html` — a relative redirect that also works under `username.github.io/repository/`.
 
 The repository includes a `.github/workflows/pages.yml` workflow that deploys pushes to `main` and can also be started manually. Before running it:

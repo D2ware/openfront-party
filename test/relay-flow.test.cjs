@@ -146,7 +146,7 @@ test("party members can report Ready from the viewer connection", async (t) => {
   });
 
   await Promise.all([leader.open(), member.open()]);
-  const [, memberWelcome] = await Promise.all([
+  const [leaderWelcome, memberWelcome] = await Promise.all([
     leader.take((message) => message.type === "session.welcome"),
     member.take((message) => message.type === "session.welcome"),
   ]);
@@ -167,6 +167,28 @@ test("party members can report Ready from the viewer connection", async (t) => {
   const watchingMember = watchingSnapshot.room.members.find((item) => item.id === memberWelcome.clientId);
   assert.equal(watchingMember.state, "watching");
   assert.equal(watchingMember.phase, "watching");
+
+  const lobby = {
+    id: "VIEWERREADY1",
+    name: "Europe",
+    map: "Europe",
+    mode: "Teams",
+    server: "w1",
+    players: 10,
+    capacity: 100,
+    startsAt: Date.now() + 60_000,
+  };
+  leader.send("member.state", { state: "ready" });
+  member.send("member.state", { state: "ready" });
+  await leader.take((message) => message.type === "group.snapshot" && message.room.members.every((item) => item.phase === "ready"));
+  leader.send("member.observe_lobby", { lobby, observedAt: Date.now() });
+  leader.send("leader.select_lobby", { lobby });
+  await leader.take((message) => message.type === "group.snapshot" && message.room.selectedLobby?.id === lobby.id);
+  leader.send("leader.launch", { attendance: "all", lobby });
+  const launch = await leader.take((message) => message.type === "launch.accepted");
+  assert.equal(launch.participants, 2);
+  const launchedSnapshot = await member.take((message) => message.type === "group.snapshot" && message.room.currentLaunch?.lobby?.id === lobby.id);
+  assert.deepEqual(new Set(launchedSnapshot.room.currentLaunch.participantIds), new Set([leaderWelcome.clientId, memberWelcome.clientId]));
 });
 
 test("connected companions launch into an observed lobby and split members receive a persistent move event", async (t) => {
@@ -205,7 +227,7 @@ test("connected companions launch into an observed lobby and split members recei
   await leader.take((message) => message.type === "group.snapshot" && message.room.selectedLobby?.id === firstLobby.id);
   leader.send("leader.launch", { attendance: "all", lobby: firstLobby });
   const blocked = await leader.take((message) => message.type === "group.error");
-  assert.match(blocked.message, /connected companion/i);
+  assert.match(blocked.message, /Ready/i);
 
   const [leaderLink, memberLink] = await Promise.all([
     linkCompanion(leader, relay.origin),

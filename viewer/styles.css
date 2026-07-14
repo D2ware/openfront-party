@@ -2536,7 +2536,7 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
 .partyLaunchDialog::backdrop { background: rgba(3, 9, 17, 0.82); backdrop-filter: blur(5px); }
 .partyLaunchDialog h2 { margin: 0; font: 800 18px var(--font-sans); text-transform: uppercase; letter-spacing: 0.04em; }
 .partyLaunchLobby { margin: 5px 0 15px; color: var(--muted); font: 600 11px var(--font-mono); }
-.partyLaunchGroups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.partyLaunchGroups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .partyLaunchGroups section { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: rgba(8, 16, 27, 0.58); }
 .partyLaunchGroups strong,
 .partyLaunchGroups span { display: block; }
