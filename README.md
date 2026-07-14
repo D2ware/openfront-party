@@ -17,6 +17,8 @@ For optional auto-open behavior, install Tampermonkey and open the companion use
 
 The relay binds to `127.0.0.1` by default. This keeps port 3030 off other network interfaces and works with an outbound Cloudflare Tunnel. Set `HOST` explicitly only when another local binding is required.
 
+Match History and companion metric icons are from [OpenFrontIO](https://github.com/openfrontio/OpenFrontIO/tree/main/resources/images) and are used under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+
 Choose **Connect OpenFront** after installing it. The viewer creates a one-use, 60-second handoff ticket and opens the official OpenFront page. The userscript claims the ticket and keeps that party member present while the viewer tab is closed.
 
 ## Party flow

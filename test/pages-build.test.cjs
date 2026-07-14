@@ -57,7 +57,12 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.doesNotMatch(viewerHtml, /https:\/\/openfront\.io\/\$\{encodeURIComponent\(workerPath\)\}\/game/);
   assert.match(companion, /openfront\.io\/game\/\$\{encodeURIComponent\(event\.gameId\)\}/);
   assert.doesNotMatch(companion, /openfront\.io\/\$\{encodeURIComponent\(workerPath\)\}\/game/);
-  assert.match(companion, /@version\s+0\.4\.2/);
+  assert.match(companion, /@version\s+0\.4\.3/);
+  assert.match(companion, /DonateTroopIconWhite\.svg/);
+  assert.match(companion, /GoldCoinIcon\.svg/);
+  assert.match(historyClient, /GridIconWhite\.svg/);
+  assert.match(historyClient, /FactoryIconWhite\.svg/);
+  assert.match(viewerHtml, /CC BY-SA 4\.0/);
   assert.match(companion, /message\?\.type === "init"/);
   assert.match(companion, /message\?\.type === "turn"/);
   assert.match(companion, /return modal\.isVisible === true/);

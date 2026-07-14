@@ -10,6 +10,18 @@
 
   const config = window.OPENFRONT_PARTY_CONFIG || {};
   const relay = new URL(config.relayOrigin || window.OPENFRONT_PARTY_RELAY_ORIGIN || location.origin, location.href).origin;
+  const openFrontIconBase = "https://raw.githubusercontent.com/openfrontio/OpenFrontIO/main/resources/images/";
+  const icons = Object.freeze({
+    territory: `${openFrontIconBase}GridIconWhite.svg`,
+    attack: `${openFrontIconBase}SwordIconWhite.svg`,
+    troops: `${openFrontIconBase}DonateTroopIconWhite.svg`,
+    donatedGold: `${openFrontIconBase}DonateGoldIconWhite.svg`,
+    port: `${openFrontIconBase}PortIcon.svg`,
+    factory: `${openFrontIconBase}FactoryIconWhite.svg`,
+    atom: `${openFrontIconBase}NukeIconWhite.svg`,
+    hydrogen: `${openFrontIconBase}MushroomCloudIconWhite.svg`,
+    gold: `${openFrontIconBase}GoldCoinIcon.svg`,
+  });
   let matches = [];
   let loaded = false;
   let loading = false;
@@ -44,9 +56,34 @@
     return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
   }
 
-  function metric(label, value) {
+  function icon(name) {
+    const image = node("img", "matchHistoryMetricIcon");
+    image.src = icons[name];
+    image.alt = "";
+    image.loading = "lazy";
+    return image;
+  }
+
+  function metric(label, value, iconName) {
     const item = node("div", "matchHistoryMetric");
-    item.append(node("span", "", label), node("strong", "", value));
+    const heading = node("span", "matchHistoryMetricLabel");
+    if (iconName) heading.append(icon(iconName));
+    heading.append(document.createTextNode(label));
+    item.append(heading, node("strong", "", value));
+    return item;
+  }
+
+  function splitMetric(label, values) {
+    const item = node("div", "matchHistoryMetric");
+    item.append(node("span", "matchHistoryMetricLabel", label));
+    const line = node("strong", "matchHistoryMetricParts");
+    values.forEach(({ iconName, value }, index) => {
+      const part = node("span", "");
+      part.append(icon(iconName), document.createTextNode(value));
+      line.append(part);
+      if (index < values.length - 1) line.append(document.createTextNode("·"));
+    });
+    item.append(line);
     return item;
   }
 
@@ -55,16 +92,23 @@
     const identity = node("div", "matchHistoryIdentity");
     const result = node("span", `matchHistoryResult ${player.won === true ? "won" : player.won === false ? "lost" : "finished"}`, player.won === true ? "Victory" : player.won === false ? "Finished" : "Reported");
     identity.append(result, node("strong", "", player.name || "Party member"));
-    const nukes = Number(player.atomBombs || 0) + Number(player.hydrogenBombs || 0);
-    const landed = Number(player.atomBombsLanded || 0) + Number(player.hydrogenBombsLanded || 0);
     row.append(
       identity,
-      metric("Territory", Number(player.finalTiles || 0).toLocaleString()),
-      metric("Attack sent", compact(player.attackTroops)),
-      metric("Donated", `${compact(player.donatedTroops)} troops · ${compact(player.donatedGold)} gold`),
-      metric("Economy", `${player.portsBuilt || 0} ports · ${player.factoriesBuilt || 0} factories`),
-      metric("Nukes", `${nukes} built · ${landed} landed`),
-      metric("Gold generated", compact(player.goldGenerated)),
+      metric("Territory", Number(player.finalTiles || 0).toLocaleString(), "territory"),
+      metric("Attack sent", compact(player.attackTroops), "attack"),
+      splitMetric("Donated", [
+        { iconName: "troops", value: compact(player.donatedTroops) },
+        { iconName: "donatedGold", value: compact(player.donatedGold) },
+      ]),
+      splitMetric("Economy", [
+        { iconName: "port", value: String(player.portsBuilt || 0) },
+        { iconName: "factory", value: String(player.factoriesBuilt || 0) },
+      ]),
+      splitMetric("Nukes", [
+        { iconName: "atom", value: `${player.atomBombs || 0}/${player.atomBombsLanded || 0}` },
+        { iconName: "hydrogen", value: `${player.hydrogenBombs || 0}/${player.hydrogenBombsLanded || 0}` },
+      ]),
+      metric("Gold generated", compact(player.goldGenerated), "gold"),
     );
     return row;
   }

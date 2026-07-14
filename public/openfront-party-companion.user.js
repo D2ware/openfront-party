@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenFront Party Companion
 // @namespace    openfront-party-coordinator
-// @version      0.4.2
+// @version      0.4.3
 // @description  Keeps an opt-in party connected and shares finalized match summaries with the party history.
 // @match        https://openfront.io/*
 // @run-at       document-start
@@ -25,6 +25,16 @@
   const PROCESSED_KEY = "openfront-party-processed-commands";
   const TELEMETRY_KEY = "openfront-party-match-telemetry-v1";
   const DEFAULT_RELAY = "http://localhost:3030";
+  const OPENFRONT_ICON_BASE = "https://raw.githubusercontent.com/openfrontio/OpenFrontIO/main/resources/images/";
+  const telemetryIcons = Object.freeze({
+    troops: `${OPENFRONT_ICON_BASE}DonateTroopIconWhite.svg`,
+    donatedGold: `${OPENFRONT_ICON_BASE}DonateGoldIconWhite.svg`,
+    port: `${OPENFRONT_ICON_BASE}PortIcon.svg`,
+    factory: `${OPENFRONT_ICON_BASE}FactoryIconWhite.svg`,
+    atom: `${OPENFRONT_ICON_BASE}NukeIconWhite.svg`,
+    hydrogen: `${OPENFRONT_ICON_BASE}MushroomCloudIconWhite.svg`,
+    gold: `${OPENFRONT_ICON_BASE}GoldCoinIcon.svg`,
+  });
   const phaseLabels = {
     watching: "Lobby board",
     opening: "Opening lobby",
@@ -633,22 +643,25 @@
     title.textContent = `MATCH DATA · ${telemetry.gameId}`;
     const grid = document.createElement("div");
     const metrics = [
-      ["Troops donated", compactNumber(telemetry.donatedTroops)],
-      ["Gold donated", compactNumber(telemetry.donatedGold)],
-      ["Ports", String(telemetry.portsBuilt || 0)],
-      ["Factories", String(telemetry.factoriesBuilt || 0)],
-      ["Atom bombs", String(telemetry.atomBombsBuilt || 0)],
-      ["Hydrogen bombs", String(telemetry.hydrogenBombsBuilt || 0)],
-      ["Nuke gold spent", compactNumber(addDecimal(telemetry.atomBombGoldSpent, telemetry.hydrogenBombGoldSpent))],
-      ["Gold generated", telemetry.finalized ? compactNumber(telemetry.goldGenerated) : "Finalizing…"],
+      ["Troops donated", compactNumber(telemetry.donatedTroops), "troops"],
+      ["Gold donated", compactNumber(telemetry.donatedGold), "donatedGold"],
+      ["Ports", String(telemetry.portsBuilt || 0), "port"],
+      ["Factories", String(telemetry.factoriesBuilt || 0), "factory"],
+      ["Atom bombs", String(telemetry.atomBombsBuilt || 0), "atom"],
+      ["Hydrogen bombs", String(telemetry.hydrogenBombsBuilt || 0), "hydrogen"],
+      ["Nuke gold spent", compactNumber(addDecimal(telemetry.atomBombGoldSpent, telemetry.hydrogenBombGoldSpent)), "gold"],
+      ["Gold generated", telemetry.finalized ? compactNumber(telemetry.goldGenerated) : "Finalizing…", "gold"],
     ];
-    for (const [label, value] of metrics) {
+    for (const [label, value, iconName] of metrics) {
       const item = document.createElement("div");
       const name = document.createElement("small");
       const number = document.createElement("b");
+      const icon = document.createElement("img");
+      icon.src = telemetryIcons[iconName];
+      icon.alt = "";
       name.textContent = label;
       number.textContent = value;
-      item.append(name, number);
+      item.append(icon, name, number);
       grid.append(item);
     }
     const note = document.createElement("p");
@@ -821,9 +834,10 @@
     #openfront-party-companion .ofpc-telemetry { display:grid; gap:7px; padding:8px; border:1px solid rgba(98,176,255,.24); border-radius:8px; background:rgba(12,27,44,.72); }
     #openfront-party-companion .ofpc-telemetry > strong { color:#62b0ff; font-size:9px; letter-spacing:.1em; }
     #openfront-party-companion .ofpc-telemetry > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; }
-    #openfront-party-companion .ofpc-telemetry > div > div { display:grid; gap:2px; min-width:0; padding:6px; border-radius:6px; background:rgba(20,31,48,.82); }
+    #openfront-party-companion .ofpc-telemetry > div > div { display:grid; grid-template-columns:15px minmax(0,1fr); align-items:center; gap:2px 5px; min-width:0; padding:6px; border-radius:6px; background:rgba(20,31,48,.82); }
+    #openfront-party-companion .ofpc-telemetry img { grid-row:1/3; width:15px; height:15px; object-fit:contain; opacity:.9; }
     #openfront-party-companion .ofpc-telemetry small { overflow:hidden; color:#9fb2c9; font-size:8px; text-overflow:ellipsis; white-space:nowrap; }
-    #openfront-party-companion .ofpc-telemetry b { color:#edf6ff; font:700 12px ui-monospace,monospace; }
+    #openfront-party-companion .ofpc-telemetry b { grid-column:2; color:#edf6ff; font:700 12px ui-monospace,monospace; }
     #openfront-party-companion .ofpc-telemetry p { margin:0; color:#8298b2; font-size:8px; line-height:1.4; }
     #openfront-party-companion .ofpc-moved { padding:10px; border:1px solid rgba(251,191,36,.58); border-radius:9px; background:rgba(71,49,8,.48); animation:ofpc-slide .22s ease-out; }
     #openfront-party-companion .ofpc-moved > strong { color:#ffd66e; font-size:10px; letter-spacing:.1em; }

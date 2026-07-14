@@ -1697,8 +1697,15 @@ body.card-view .matchHistoryToggle { display: inline-flex; }
 .matchHistoryIdentity strong { overflow:hidden; color:#f1f6fd; font-size:13px; text-overflow:ellipsis; white-space:nowrap; }
 .matchHistoryResult { width:max-content; color:#96aac0; font:800 8px var(--font-mono); letter-spacing:.1em; text-transform:uppercase; }
 .matchHistoryResult.won { color:#66e2a2; }
-.matchHistoryMetric span { color:#748aa4; font:700 8px var(--font-mono); letter-spacing:.06em; text-transform:uppercase; }
+.matchHistoryMetric > span { color:#748aa4; font:700 8px var(--font-mono); letter-spacing:.06em; text-transform:uppercase; }
 .matchHistoryMetric strong { overflow:hidden; color:#c9d8e8; font-size:10px; line-height:1.35; text-overflow:ellipsis; }
+.matchHistoryMetricLabel { display:flex; align-items:center; gap:5px; }
+.matchHistoryMetricIcon { width:13px; height:13px; object-fit:contain; flex:0 0 auto; opacity:.88; }
+.matchHistoryMetricParts { display:flex; align-items:center; gap:5px; white-space:nowrap; }
+.matchHistoryMetricParts > span { display:inline-flex; align-items:center; gap:4px; min-width:0; }
+.matchHistoryAttribution { padding:0 28px 14px; color:#60758e; font:600 8px var(--font-mono); text-align:right; }
+.matchHistoryAttribution a { color:#7898b8; text-decoration:none; }
+.matchHistoryAttribution a:hover { color:#a8caeb; text-decoration:underline; }
 .matchHistoryEmpty { display:grid; justify-items:center; gap:7px; padding:70px 22px; text-align:center; border:1px dashed rgba(112,194,255,.28); border-radius:12px; background:linear-gradient(135deg,rgba(112,194,255,.035),transparent); }
 .matchHistoryEmpty > span { color:#70c2ff; font:800 9px var(--font-mono); letter-spacing:.14em; text-transform:uppercase; }
 .matchHistoryEmpty h2 { margin:0; color:#eaf4ff; font-size:18px; }
@@ -1720,6 +1727,7 @@ body.card-view .matchHistoryToggle { display: inline-flex; }
   .matchHistoryHead { padding:20px 18px; }
   .matchHistoryLedger { padding:10px 18px; }
   .matchHistoryList { max-height:calc(100vh - 190px); padding:9px; }
+  .matchHistoryAttribution { padding:0 14px 10px; text-align:left; }
   .matchHistoryMatchHead { gap:12px; padding:14px; }
   .matchHistoryPlayer { grid-template-columns:repeat(2,1fr); }
 }
