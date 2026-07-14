@@ -20,6 +20,7 @@
         <div class="headerActions">
           <button id="toggleFilters" class="filtersToggle" type="button">Filters</button>
           <button id="partyToggle" class="partyToggle" type="button" aria-expanded="false"><span>Party</span><span id="partyToggleCount" class="partyToggleCount" hidden></span></button>
+          <button id="matchHistoryToggle" class="matchHistoryToggle" type="button" aria-expanded="false"><span>Match history</span><span id="matchHistoryCount" class="matchHistoryCount" hidden></span></button>
           <button id="viewToggle" class="viewToggle" type="button">Detailed table</button>
           <button id="alertToggle" class="alertToggle" type="button">Alerts: Off</button>
         </div>
@@ -70,6 +71,16 @@
               <section class="partySection partyPreference"><div class="partySectionHead"><div><div class="groupLabel">Your filters</div><p class="partySectionHint">Card match numbers use these filters.</p></div></div><div id="partyFilterSummary" class="partyFilterSummary">All public lobbies</div><button id="partyEditFilters" class="partyFilterAction" type="button">Edit in Filters</button></section>
             </div>
           </div>
+        </section>
+      </div>
+      <div class="matchHistoryBackdrop" id="matchHistoryBackdrop" hidden>
+        <section class="matchHistoryModal" id="matchHistoryPanel" role="dialog" aria-modal="true" aria-labelledby="matchHistoryTitle">
+          <header class="matchHistoryHead">
+            <div><span class="matchHistoryEyebrow">After-action log</span><h1 id="matchHistoryTitle">Match history</h1><p>Final reports shared by linked OpenFront companions.</p></div>
+            <button id="matchHistoryClose" class="partyClose" type="button" aria-label="Close match history">&times;</button>
+          </header>
+          <div class="matchHistoryLedger"><span id="matchHistorySummary">Loading completed matches...</span><button id="matchHistoryRefresh" type="button">Refresh</button></div>
+          <div id="matchHistoryList" class="matchHistoryList" aria-live="polite"></div>
         </section>
       </div>
       <div class="panelShell" id="panelShell">
@@ -2657,5 +2668,6 @@
     </script>
     <script src="config.js"></script>
     <script src="party.js"></script>
+    <script src="history.js"></script>
   </body>
 </html>

@@ -19,11 +19,38 @@ const JOIN_COMMAND_MS = 20_000;
 const MAX_LOBBY_OBSERVATION_AGE_MS = 10_000;
 const MIN_LOBBY_START_LEAD_MS = 8_000;
 const LONG_POLL_MS = 20_000;
+const MATCH_HISTORY_FILE = process.env.MATCH_HISTORY_FILE || path.join(__dirname, "data", "match-history.json");
+const MAX_MATCH_HISTORY = 200;
 
 const rooms = new Map();
 const sessions = new Map();
 const companionTickets = new Map();
 const companionTokens = new Map();
+
+function loadMatchHistory() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(MATCH_HISTORY_FILE, "utf8"));
+    if (parsed?.version === 1 && Array.isArray(parsed.matches)) return parsed;
+  } catch (error) {
+    if (error.code !== "ENOENT") console.error("Could not load match history:", error.message);
+  }
+  return { version: 1, matches: [] };
+}
+
+const matchHistory = loadMatchHistory();
+let matchHistoryWrite = Promise.resolve();
+
+function persistMatchHistory() {
+  const contents = `${JSON.stringify(matchHistory, null, 2)}\n`;
+  const write = matchHistoryWrite.catch(() => {}).then(async () => {
+    await fs.promises.mkdir(path.dirname(MATCH_HISTORY_FILE), { recursive: true });
+    const temporary = `${MATCH_HISTORY_FILE}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
+    await fs.promises.writeFile(temporary, contents, { encoding: "utf8", mode: 0o600 });
+    await fs.promises.rename(temporary, MATCH_HISTORY_FILE);
+  });
+  matchHistoryWrite = write;
+  return write;
+}
 
 const demoLobbies = [
   { id: "montreal", name: "Montreal", mode: "Free for all", map: "Compact map", players: 18, capacity: 100, eta: "1m 52s", server: "w2", status: "open" },
@@ -589,6 +616,88 @@ function bearerMember(req) {
   return companionTokens.get(tokenHash(match[1])) || null;
 }
 
+function boundedInteger(value, maximum = 1_000_000) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 0 && number <= maximum ? number : 0;
+}
+
+function decimalMetric(value, digits = 24) {
+  const text = typeof value === "number" && Number.isSafeInteger(value) ? String(value) : String(value ?? "");
+  return new RegExp(`^\\d{1,${digits}}$`).test(text) ? text.replace(/^0+(?=\d)/, "") : "0";
+}
+
+function cleanMatchReport(body) {
+  const gameId = cleanText(body.gameId, 64);
+  if (!body.finalized || !gameId) return null;
+  const won = typeof body.won === "boolean" ? body.won : null;
+  const timestamp = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 1_600_000_000_000 && number <= Date.now() + 300_000 ? Math.trunc(number) : null;
+  };
+  return {
+    gameId,
+    startedAt: timestamp(body.startedAt),
+    endedAt: timestamp(body.endedAt) || Date.now(),
+    won,
+    finalTiles: boundedInteger(body.finalTiles, 100_000_000),
+    attackTroops: decimalMetric(body.attackTroops),
+    donatedTroops: decimalMetric(body.donatedTroops),
+    donatedGold: decimalMetric(body.donatedGold),
+    goldGenerated: decimalMetric(body.goldGenerated),
+    nukeGoldSpent: decimalMetric(body.nukeGoldSpent),
+    portsBuilt: boundedInteger(body.portsBuilt, 100_000),
+    factoriesBuilt: boundedInteger(body.factoriesBuilt, 100_000),
+    atomBombs: boundedInteger(body.atomBombs, 100_000),
+    atomBombsLanded: boundedInteger(body.atomBombsLanded, 100_000),
+    hydrogenBombs: boundedInteger(body.hydrogenBombs, 100_000),
+    hydrogenBombsLanded: boundedInteger(body.hydrogenBombsLanded, 100_000),
+  };
+}
+
+function publicMatch(match) {
+  return {
+    gameId: match.gameId,
+    map: match.map,
+    mode: match.mode,
+    worker: match.worker,
+    startedAt: match.startedAt,
+    endedAt: match.endedAt,
+    updatedAt: match.updatedAt,
+    players: match.players.map(({ memberId, ...player }) => player),
+  };
+}
+
+async function recordMatchReport(member, report) {
+  const now = Date.now();
+  const launchLobby = member.room?.currentLaunch?.lobby;
+  let match = matchHistory.matches.find((item) => item.gameId === report.gameId);
+  if (!match) {
+    match = {
+      gameId: report.gameId,
+      map: launchLobby?.id === report.gameId ? cleanText(launchLobby.name || launchLobby.map, 80) : "OpenFront match",
+      mode: launchLobby?.id === report.gameId ? cleanText(launchLobby.mode, 80) : "",
+      worker: cleanText(member.worker || launchLobby?.server, 8),
+      startedAt: report.startedAt,
+      endedAt: report.endedAt,
+      updatedAt: now,
+      players: [],
+    };
+    matchHistory.matches.push(match);
+  }
+  match.startedAt = match.startedAt && report.startedAt ? Math.min(match.startedAt, report.startedAt) : (match.startedAt || report.startedAt);
+  match.endedAt = Math.max(match.endedAt || 0, report.endedAt);
+  match.updatedAt = now;
+  const player = { memberId: member.id, name: member.name, ...report, reportedAt: now };
+  delete player.gameId;
+  const playerIndex = match.players.findIndex((item) => item.memberId === member.id);
+  if (playerIndex >= 0) match.players[playerIndex] = player;
+  else match.players.push(player);
+  matchHistory.matches.sort((a, b) => (b.endedAt || b.updatedAt) - (a.endedAt || a.updatedAt));
+  matchHistory.matches.splice(MAX_MATCH_HISTORY);
+  await persistMatchHistory();
+  return publicMatch(match);
+}
+
 async function handleCompanionApi(req, res, url) {
   if (req.method === "OPTIONS") { json(res, 204, {}); return true; }
   if (url.pathname === "/api/companion/claim" && req.method === "POST") {
@@ -640,6 +749,15 @@ async function handleCompanionApi(req, res, url) {
     json(res, 200, { ok: true, room: roomSnapshot(member.room) });
     return true;
   }
+  if (url.pathname === "/api/companion/matches" && req.method === "POST") {
+    const body = await readJson(req);
+    const report = cleanMatchReport(body);
+    if (!report) { json(res, 400, { error: "A finalized match report with a game ID is required." }); return true; }
+    if (member.gameId !== report.gameId) { json(res, 409, { error: "This companion is not linked to that match." }); return true; }
+    const match = await recordMatchReport(member, report);
+    json(res, 200, { ok: true, match });
+    return true;
+  }
   if (url.pathname === "/api/companion/action" && req.method === "POST") {
     const body = await readJson(req);
     const event = member.events.find((item) => item.eventId === cleanText(body.eventId, 64));
@@ -655,6 +773,10 @@ async function handleCompanionApi(req, res, url) {
 async function handleRequest(req, res) {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   if (await handleCompanionApi(req, res, url)) return;
+  if (url.pathname === "/api/matches" && req.method === "GET") {
+    const limit = Math.min(100, Math.max(1, boundedInteger(url.searchParams.get("limit"), 100) || 30));
+    json(res, 200, { matches: matchHistory.matches.slice(0, limit).map(publicMatch) }); return;
+  }
   if (url.pathname === "/api/groups") {
     const groups = [...rooms.values()]
       .filter((room) => room.isPublic)

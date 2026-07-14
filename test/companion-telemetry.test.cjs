@@ -95,11 +95,14 @@ test("companion records confirmed local match telemetry from OpenFront messages"
   const winUpdates = Array.from({ length: 25 }, () => []);
   winUpdates[10].push({
     type: 10,
+    winner: ["player", "CLIENT01"],
     allPlayersStats: {
       CLIENT01: {
+        finalTiles: 9876,
+        attacks: ["7654321", "123", "0"],
         gold: ["100", "200", "300", "400", "500", "600"],
         units: { port: ["3"], fact: ["2"] },
-        bombs: { abomb: ["4"], hbomb: ["1"] },
+        bombs: { abomb: ["4", "3"], hbomb: ["1", "1"] },
       },
     },
   });
@@ -128,6 +131,12 @@ test("companion records confirmed local match telemetry from OpenFront messages"
       otherTrains: "600",
     },
     finalized: true,
+    finalTiles: 9876,
+    attackTroops: "7654321",
+    atomBombsLanded: 3,
+    hydrogenBombsLanded: 1,
+    won: true,
+    endedAt: sessions.GAME1234.endedAt,
     infiniteGold: false,
     hostInfiniteGold: false,
     clientId: "CLIENT01",

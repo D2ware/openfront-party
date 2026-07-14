@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "matches": [
+    {
+      "gameId": "DUWP5W1s",
+      "map": "Strait of Gibraltar",
+      "mode": "2 teams of 37 players",
+      "worker": "w10",
+      "startedAt": 1784034300000,
+      "endedAt": 1784037900000,
+      "updatedAt": 1784037900000,
+      "players": [
+        {
+          "memberId": "fixture-one",
+          "name": "D_D",
+          "won": true,
+          "finalTiles": 18452,
+          "attackTroops": "28750000",
+          "donatedTroops": "2450000",
+          "donatedGold": "1800000",
+          "goldGenerated": "38450000",
+          "nukeGoldSpent": "6500000",
+          "portsBuilt": 8,
+          "factoriesBuilt": 4,
+          "atomBombs": 2,
+          "atomBombsLanded": 1,
+          "hydrogenBombs": 1,
+          "hydrogenBombsLanded": 1,
+          "reportedAt": 1784037900000
+        },
+        {
+          "memberId": "fixture-two",
+          "name": "o-o",
+          "won": true,
+          "finalTiles": 15390,
+          "attackTroops": "21900000",
+          "donatedTroops": "900000",
+          "donatedGold": "2750000",
+          "goldGenerated": "31200000",
+          "nukeGoldSpent": "750000",
+          "portsBuilt": 5,
+          "factoriesBuilt": 6,
+          "atomBombs": 1,
+          "atomBombsLanded": 0,
+          "hydrogenBombs": 0,
+          "hydrogenBombsLanded": 0,
+          "reportedAt": 1784037890000
+        }
+      ]
+    },
+    {
+      "gameId": "6m7AdG5X",
+      "map": "Strait of Malacca",
+      "mode": "2 teams of 4 players",
+      "worker": "w3",
+      "startedAt": 1784029000000,
+      "endedAt": 1784031100000,
+      "updatedAt": 1784031100000,
+      "players": [
+        {
+          "memberId": "fixture-one",
+          "name": "D_D",
+          "won": false,
+          "finalTiles": 6200,
+          "attackTroops": "8400000",
+          "donatedTroops": "125000",
+          "donatedGold": "0",
+          "goldGenerated": "9700000",
+          "nukeGoldSpent": "0",
+          "portsBuilt": 3,
+          "factoriesBuilt": 1,
+          "atomBombs": 0,
+          "atomBombsLanded": 0,
+          "hydrogenBombs": 0,
+          "hydrogenBombsLanded": 0,
+          "reportedAt": 1784031100000
+        }
+      ]
+    }
+  ]
+}

@@ -372,6 +372,7 @@
     el.toggle.setAttribute("aria-expanded", String(open));
     el.toggle.classList.toggle("active", open || Boolean(room));
     if (open) {
+      window.dispatchEvent(new CustomEvent("openfront:party-open"));
       lastFocusedElement = document.activeElement;
       loadOpenParties();
       requestAnimationFrame(() => el.panel.querySelector("input:not([hidden]), button:not([hidden])")?.focus());
@@ -379,6 +380,8 @@
       lastFocusedElement.focus();
     }
   }
+
+  window.addEventListener("openfront:history-open", () => toggleModal(false));
 
   function setSelectingLobby(active) {
     const wasSelecting = selectingLobby;

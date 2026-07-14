@@ -1,6 +1,8 @@
 const assert = require("node:assert/strict");
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
 const net = require("node:net");
+const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const { WebSocket } = require("ws");
@@ -15,11 +17,13 @@ async function freePort() {
   return port;
 }
 
-async function startRelay() {
+async function startRelay(options = {}) {
   const port = await freePort();
+  const dataDir = options.historyFile ? null : fs.mkdtempSync(path.join(os.tmpdir(), "openfront-party-test-"));
+  const historyFile = options.historyFile || path.join(dataDir, "match-history.json");
   const child = spawn(process.execPath, ["server.cjs"], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), HOST: "127.0.0.1" },
+    env: { ...process.env, PORT: String(port), HOST: "127.0.0.1", MATCH_HISTORY_FILE: historyFile },
     stdio: ["ignore", "pipe", "pipe"],
   });
   await new Promise((resolve, reject) => {
@@ -31,7 +35,8 @@ async function startRelay() {
       resolve();
     });
   });
-  return { child, origin: `http://127.0.0.1:${port}`, wsUrl: `ws://127.0.0.1:${port}` };
+  if (dataDir) child.once("exit", () => fs.rmSync(dataDir, { recursive: true, force: true }));
+  return { child, origin: `http://127.0.0.1:${port}`, wsUrl: `ws://127.0.0.1:${port}`, historyFile };
 }
 
 class TestClient {
@@ -134,6 +139,52 @@ async function waitForCompanionEvent(origin, linked, type, cursor, revision, tim
   }
   throw new Error(`Timed out waiting for companion event ${type}.`);
 }
+
+test("finalized companion reports are authenticated, grouped, and persisted", async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "openfront-party-history-"));
+  const historyFile = path.join(dataDir, "matches.json");
+  const relay = await startRelay({ historyFile });
+  const leader = new TestClient(relay.wsUrl);
+  t.after(() => {
+    leader.close();
+    relay.child.kill();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  await leader.open();
+  await leader.take((message) => message.type === "session.welcome");
+  leader.send("group.create", { name: "Trusted Leader", decisionMode: "dictator", isPublic: true });
+  await leader.take((message) => message.type === "group.snapshot" && message.room.members.length === 1);
+  const linked = await linkCompanion(leader, relay.origin);
+  await jsonRequest(relay.origin, "/api/companion/state", {
+    method: "POST", token: linked.companionToken,
+    data: { phase: "in_game", gameId: "MATCH-42", worker: "w2" },
+  });
+
+  const report = {
+    gameId: "MATCH-42", finalized: true, name: "Spoofed Name", won: true,
+    finalTiles: 4242, attackTroops: "9000000", donatedTroops: "12000",
+    donatedGold: "700000", goldGenerated: "12345678", nukeGoldSpent: "5750000",
+    portsBuilt: 3, factoriesBuilt: 2, atomBombs: 1, atomBombsLanded: 1,
+    hydrogenBombs: 1, hydrogenBombsLanded: 0,
+  };
+  await jsonRequest(relay.origin, "/api/companion/matches", { method: "POST", token: linked.companionToken, data: report });
+  report.donatedTroops = "13000";
+  await jsonRequest(relay.origin, "/api/companion/matches", { method: "POST", token: linked.companionToken, data: report });
+
+  const history = await jsonRequest(relay.origin, "/api/matches");
+  assert.equal(history.matches.length, 1);
+  assert.equal(history.matches[0].players.length, 1);
+  assert.equal(history.matches[0].players[0].name, "Trusted Leader");
+  assert.equal(history.matches[0].players[0].donatedTroops, "13000");
+  assert.equal("memberId" in history.matches[0].players[0], false);
+  assert.equal(fs.existsSync(historyFile), true);
+
+  await assert.rejects(
+    jsonRequest(relay.origin, "/api/companion/matches", { method: "POST", token: linked.companionToken, data: { ...report, gameId: "FAKE" } }),
+    (error) => error.status === 409,
+  );
+});
 
 test("party members can report Ready from the viewer connection", async (t) => {
   const relay = await startRelay();

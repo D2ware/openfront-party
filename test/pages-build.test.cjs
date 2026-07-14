@@ -17,6 +17,7 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   const viewerHtml = fs.readFileSync(path.join(output, "viewer", "index.html"), "utf8");
   const config = fs.readFileSync(path.join(output, "viewer", "config.js"), "utf8");
   const partyClient = fs.readFileSync(path.join(output, "viewer", "party.js"), "utf8");
+  const historyClient = fs.readFileSync(path.join(output, "viewer", "history.js"), "utf8");
   const companion = fs.readFileSync(path.join(output, "openfront-party-companion.user.js"), "utf8");
   const rootHtml = fs.readFileSync(path.join(output, "index.html"), "utf8");
 
@@ -28,6 +29,10 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.match(viewerHtml, /href="styles\.css\?v=[a-f0-9]{12}"/);
   assert.match(viewerHtml, /src="config\.js\?v=[a-f0-9]{12}"/);
   assert.match(viewerHtml, /src="party\.js\?v=[a-f0-9]{12}"/);
+  assert.match(viewerHtml, /id="matchHistoryToggle"/);
+  assert.match(viewerHtml, /id="matchHistoryBackdrop"/);
+  assert.match(viewerHtml, /src="history\.js\?v=[a-f0-9]{12}"/);
+  assert.match(historyClient, /\/api\/matches\?limit=50/);
   assert.match(partyClient, /send\("member\.state", \{ state: next \}\)/);
   assert.match(partyClient, /You will be included in the next launch/);
   assert.doesNotMatch(partyClient, /tabReady.*prepareOpenFrontWindow/);
@@ -48,7 +53,8 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.match(partyClient, /current\.companionConnected/);
   assert.match(viewerHtml, /OPENFRONT_PARTY_OPENFRONT_WINDOW = window\.open\(card\.dataset\.joinUrl, "openfront-party-game"\)/);
   assert.match(companion, /openfront\.io\/\$\{encodeURIComponent\(workerPath\)\}\/game\/\$\{encodeURIComponent\(event\.gameId\)\}/);
-  assert.match(companion, /@version\s+0\.3\.0/);
+  assert.match(companion, /@version\s+0\.4\.0/);
+  assert.match(companion, /\/api\/companion\/matches/);
   assert.match(companion, /@grant\s+unsafeWindow/);
   assert.match(companion, /donate: 24/);
   assert.match(companion, /message\.type === "winner"/);

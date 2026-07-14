@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OpenFront Party Companion
 // @namespace    openfront-party-coordinator
-// @version      0.3.0
-// @description  Keeps an opt-in party connected and records local match telemetry while playing OpenFront.
+// @version      0.4.0
+// @description  Keeps an opt-in party connected and shares finalized match summaries with the party history.
 // @match        https://openfront.io/*
 // @run-at       document-start
 // @noframes
@@ -51,6 +51,7 @@
   let telemetry = null;
   let telemetryClientId = null;
   let telemetryPlayerId = null;
+  let uploadingTelemetry = false;
   let pendingBuilds = [];
   const seenUnitIds = new Set();
   const persistentEvents = new Map();
@@ -119,7 +120,52 @@
     return (values || []).reduce((total, value) => addDecimal(total, value), "0");
   }
 
-  function finalizeTelemetry(allPlayersStats) {
+  function winnerIncludesClient(winner) {
+    if (!Array.isArray(winner) || !telemetryClientId) return null;
+    if (winner[0] === "player") return winner.slice(1).includes(telemetryClientId);
+    if (winner[0] === "team" || winner[0] === "nation") return winner.slice(2).includes(telemetryClientId);
+    return null;
+  }
+
+  function historyPayload(match) {
+    return {
+      gameId: match.gameId,
+      finalized: true,
+      startedAt: match.startedAt,
+      endedAt: match.endedAt,
+      won: match.won,
+      finalTiles: match.finalTiles || 0,
+      attackTroops: match.attackTroops || "0",
+      donatedTroops: match.donatedTroops || "0",
+      donatedGold: match.donatedGold || "0",
+      goldGenerated: match.goldGenerated || "0",
+      nukeGoldSpent: addDecimal(match.atomBombGoldSpent, match.hydrogenBombGoldSpent),
+      portsBuilt: match.portsBuilt || 0,
+      factoriesBuilt: match.factoriesBuilt || 0,
+      atomBombs: match.atomBombsBuilt || 0,
+      atomBombsLanded: match.atomBombsLanded || 0,
+      hydrogenBombs: match.hydrogenBombsBuilt || 0,
+      hydrogenBombsLanded: match.hydrogenBombsLanded || 0,
+    };
+  }
+
+  async function uploadFinalizedTelemetry() {
+    if (!credential || uploadingTelemetry || !telemetry?.finalized || telemetry.uploadedAt) return;
+    uploadingTelemetry = true;
+    try {
+      await api("/api/companion/matches", { method: "POST", data: historyPayload(telemetry), timeout: 10_000 });
+      telemetry.uploadedAt = Date.now();
+      telemetry.uploadError = null;
+      saveTelemetry();
+    } catch (error) {
+      telemetry.uploadError = error.message;
+      saveTelemetry();
+    } finally {
+      uploadingTelemetry = false;
+    }
+  }
+
+  function finalizeTelemetry(allPlayersStats, winner) {
     if (!telemetry || !telemetryClientId || !allPlayersStats) return;
     const stats = allPlayersStats[telemetryClientId];
     if (!stats) return;
@@ -133,14 +179,21 @@
       otherTrains: gold[5] || "0",
     };
     telemetry.goldGenerated = sumDecimals(Object.values(telemetry.goldBreakdown));
+    telemetry.finalTiles = Number(stats.finalTiles || 0);
+    telemetry.attackTroops = decimal(stats.attacks?.[0]);
     telemetry.portsBuilt = Number(stats.units?.port?.[0] || telemetry.portsBuilt || 0);
     telemetry.factoriesBuilt = Number(stats.units?.fact?.[0] || telemetry.factoriesBuilt || 0);
     telemetry.atomBombsBuilt = Number(stats.bombs?.abomb?.[0] || telemetry.atomBombsBuilt || 0);
     telemetry.hydrogenBombsBuilt = Number(stats.bombs?.hbomb?.[0] || telemetry.hydrogenBombsBuilt || 0);
+    telemetry.atomBombsLanded = Number(stats.bombs?.abomb?.[1] || 0);
+    telemetry.hydrogenBombsLanded = Number(stats.bombs?.hbomb?.[1] || 0);
     telemetry.atomBombGoldSpent = telemetry.infiniteGold ? "0" : (BigInt(telemetry.atomBombsBuilt) * 750_000n).toString();
     telemetry.hydrogenBombGoldSpent = telemetry.infiniteGold ? "0" : (BigInt(telemetry.hydrogenBombsBuilt) * 5_000_000n).toString();
+    telemetry.won = winnerIncludesClient(winner);
+    telemetry.endedAt = Date.now();
     telemetry.finalized = true;
     saveTelemetry();
+    void uploadFinalizedTelemetry();
   }
 
   function processTurn(turn) {
@@ -196,7 +249,7 @@
       saveTelemetry();
     }
     for (const unit of groups[updateTypes.unit] || []) confirmBuiltUnit(unit);
-    for (const win of groups[updateTypes.win] || []) finalizeTelemetry(win.allPlayersStats);
+    for (const win of groups[updateTypes.win] || []) finalizeTelemetry(win.allPlayersStats, win.winner);
     const tick = Number(update.tick) || 0;
     pendingBuilds = pendingBuilds.filter((item) => tick - item.turn <= 20);
   }
@@ -222,7 +275,7 @@
             socket.send = function (data) {
               try {
                 const message = JSON.parse(data);
-                if (message.type === "winner") finalizeTelemetry(message.allPlayersStats);
+                if (message.type === "winner") finalizeTelemetry(message.allPlayersStats, message.winner);
               } catch {}
               return send.call(this, data);
             };
@@ -374,6 +427,7 @@
       if (response.room) room = response.room;
       connected = true;
       render();
+      void uploadFinalizedTelemetry();
     } catch (error) {
       connected = false;
       if (error.status === 401) unlink(false);
@@ -438,6 +492,7 @@
         ingestEvents(response.events);
         detectPhase();
         render();
+        void uploadFinalizedTelemetry();
       } catch (error) {
         connected = false;
         render(error.message);
@@ -471,6 +526,7 @@
       render();
       detectPhase();
       await reportState(true);
+      void uploadFinalizedTelemetry();
       void poll();
     } catch (error) {
       credential = null;
@@ -586,7 +642,7 @@
     }
     const note = document.createElement("p");
     note.textContent = telemetry.finalized
-      ? "Final values confirmed by OpenFront match stats. Stored locally."
+      ? (telemetry.uploadedAt ? "Final values shared with Match History and stored locally." : "Final values stored locally; Match History upload is pending.")
       : "Live local counters. Total generated gold is confirmed when the match ends.";
     card.append(title, grid, note);
     container.append(card);

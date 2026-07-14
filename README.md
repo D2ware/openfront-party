@@ -70,14 +70,14 @@ The Discord profile buttons in the viewer header are retained as the original cr
 
 The userscript runs only on `https://openfront.io/*`. It observes the official URL, `body.in-game`, and `win-modal` to report coarse phases. It shows a draggable party panel and navigates to an official game URL only when the user has explicitly selected **Ready for next game**.
 
-Companion 0.3 also records an opt-in local match summary. It identifies the local player from OpenFront's game-server `start` message, confirms builds and donations from game-worker updates, and replaces cumulative build and income totals with OpenFront's own final `WinUpdate` statistics. The latest 20 match summaries remain in Tampermonkey storage on that browser; telemetry is not uploaded to the party relay.
+Companion 0.4 also records an opt-in match summary. It identifies the local player from OpenFront's game-server `start` message, confirms builds and donations from game-worker updates, and replaces cumulative build and income totals with OpenFront's own final `WinUpdate` statistics. The latest 20 summaries remain in Tampermonkey storage. When the companion is linked to a party, finalized calculated summaries are also uploaded to the relay and shown in **Match history**; raw gameplay messages are never uploaded.
 
 For production, deploy the relay behind public HTTPS/WSS and use that origin when opening the viewer. The userscript accepts the relay origin only through the one-use connection fragment.
 
 ## Security boundaries
 
 - The relay and userscript never read or transmit OpenFront cookies, credentials, play tokens, or Turnstile responses.
-- The userscript observes game-server and worker messages locally to calculate match telemetry. Raw gameplay messages and calculated telemetry are not sent to the party relay.
+- The userscript observes game-server and worker messages locally. It sends only finalized calculated metrics to the relay while linked; the relay supplies the party callsign from the authenticated companion session. Raw gameplay messages, OpenFront credentials, and party codes are not stored in match history.
 - Companion credentials are random bearer tokens; only their SHA-256 hashes are retained by the relay.
 - Handoff tickets are one-use and expire after 60 seconds.
 - Join commands contain only a worker, game ID, round ID, and short expiry.
