@@ -48,6 +48,18 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.match(partyClient, /current\.companionConnected/);
   assert.match(viewerHtml, /OPENFRONT_PARTY_OPENFRONT_WINDOW = window\.open\(card\.dataset\.joinUrl, "openfront-party-game"\)/);
   assert.match(companion, /openfront\.io\/\$\{encodeURIComponent\(workerPath\)\}\/game\/\$\{encodeURIComponent\(event\.gameId\)\}/);
+  assert.match(companion, /@version\s+0\.3\.0/);
+  assert.match(companion, /@grant\s+unsafeWindow/);
+  assert.match(companion, /donate: 24/);
+  assert.match(companion, /message\.type === "winner"/);
+  assert.match(companion, /stats\.units\?\.port/);
+  assert.match(companion, /stats\.units\?\.fact/);
+  assert.match(companion, /stats\.bombs\?\.abomb/);
+  assert.match(companion, /stats\.bombs\?\.hbomb/);
+  assert.match(companion, /Gold generated/);
+  assert.match(companion, /Nuke gold spent/);
+  assert.match(companion, /750_000n/);
+  assert.match(companion, /5_000_000n/);
   assert.match(rootHtml, /\.\/viewer\//);
   assert.doesNotMatch(viewerHtml, /(?:href|src)="\//);
   assert.equal(fs.existsSync(path.join(output, "viewer", ".git")), false);

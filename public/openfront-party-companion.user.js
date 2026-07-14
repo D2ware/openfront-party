@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         OpenFront Party Companion
 // @namespace    openfront-party-coordinator
-// @version      0.2.0
-// @description  Keeps an opt-in pre-lobby party connected while playing OpenFront.
+// @version      0.3.0
+// @description  Keeps an opt-in party connected and records local match telemetry while playing OpenFront.
 // @match        https://openfront.io/*
 // @run-at       document-start
 // @noframes
@@ -11,6 +11,7 @@
 // @grant        GM_deleteValue
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
 // @connect      localhost
 // @connect      127.0.0.1
 // @connect      *
@@ -22,6 +23,7 @@
   const STORAGE_KEY = "openfront-party-companion-session";
   const POSITION_KEY = "openfront-party-companion-position";
   const PROCESSED_KEY = "openfront-party-processed-commands";
+  const TELEMETRY_KEY = "openfront-party-match-telemetry-v1";
   const DEFAULT_RELAY = "http://localhost:3030";
   const phaseLabels = {
     watching: "Lobby board",
@@ -46,9 +48,205 @@
   let collapsed = true;
   let root;
   let body;
+  let telemetry = null;
+  let telemetryClientId = null;
+  let telemetryPlayerId = null;
+  let pendingBuilds = [];
+  const seenUnitIds = new Set();
   const persistentEvents = new Map();
   const acknowledgedEventIds = new Set();
   const processedCommands = new Set(GM_getValue(PROCESSED_KEY, []));
+
+  const updateTypes = Object.freeze({ unit: 1, player: 2, win: 10, donate: 24 });
+  const trackedUnits = new Map([
+    ["Port", "portsBuilt"],
+    ["Factory", "factoriesBuilt"],
+    ["Atom Bomb", "atomBombsBuilt"],
+    ["Hydrogen Bomb", "hydrogenBombsBuilt"],
+  ]);
+
+  function decimal(value) {
+    try { return BigInt(value ?? 0).toString(); }
+    catch { return "0"; }
+  }
+
+  function addDecimal(left, right) {
+    try { return (BigInt(left || 0) + BigInt(right || 0)).toString(); }
+    catch { return decimal(left); }
+  }
+
+  function telemetryStore() {
+    const stored = GM_getValue(TELEMETRY_KEY, {});
+    return stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
+  }
+
+  function beginTelemetry(gameId) {
+    if (!gameId) return;
+    const store = telemetryStore();
+    telemetry = store[gameId] || {
+      gameId,
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      donatedTroops: "0",
+      donatedGold: "0",
+      portsBuilt: 0,
+      factoriesBuilt: 0,
+      atomBombsBuilt: 0,
+      hydrogenBombsBuilt: 0,
+      atomBombGoldSpent: "0",
+      hydrogenBombGoldSpent: "0",
+      goldGenerated: null,
+      goldBreakdown: null,
+      finalized: false,
+    };
+    telemetryClientId = telemetry.clientId || null;
+    telemetryPlayerId = Number.isInteger(telemetry.playerId) ? telemetry.playerId : null;
+  }
+
+  function saveTelemetry() {
+    if (!telemetry?.gameId) return;
+    telemetry.updatedAt = Date.now();
+    telemetry.clientId = telemetryClientId;
+    telemetry.playerId = telemetryPlayerId;
+    const store = telemetryStore();
+    store[telemetry.gameId] = telemetry;
+    const entries = Object.entries(store).sort((a, b) => Number(b[1]?.updatedAt || 0) - Number(a[1]?.updatedAt || 0));
+    GM_setValue(TELEMETRY_KEY, Object.fromEntries(entries.slice(0, 20)));
+    render();
+  }
+
+  function sumDecimals(values) {
+    return (values || []).reduce((total, value) => addDecimal(total, value), "0");
+  }
+
+  function finalizeTelemetry(allPlayersStats) {
+    if (!telemetry || !telemetryClientId || !allPlayersStats) return;
+    const stats = allPlayersStats[telemetryClientId];
+    if (!stats) return;
+    const gold = (stats.gold || []).map(decimal);
+    telemetry.goldBreakdown = {
+      workers: gold[0] || "0",
+      conquest: gold[1] || "0",
+      tradeShips: gold[2] || "0",
+      capturedTrade: gold[3] || "0",
+      ownTrains: gold[4] || "0",
+      otherTrains: gold[5] || "0",
+    };
+    telemetry.goldGenerated = sumDecimals(Object.values(telemetry.goldBreakdown));
+    telemetry.portsBuilt = Number(stats.units?.port?.[0] || telemetry.portsBuilt || 0);
+    telemetry.factoriesBuilt = Number(stats.units?.fact?.[0] || telemetry.factoriesBuilt || 0);
+    telemetry.atomBombsBuilt = Number(stats.bombs?.abomb?.[0] || telemetry.atomBombsBuilt || 0);
+    telemetry.hydrogenBombsBuilt = Number(stats.bombs?.hbomb?.[0] || telemetry.hydrogenBombsBuilt || 0);
+    telemetry.atomBombGoldSpent = telemetry.infiniteGold ? "0" : (BigInt(telemetry.atomBombsBuilt) * 750_000n).toString();
+    telemetry.hydrogenBombGoldSpent = telemetry.infiniteGold ? "0" : (BigInt(telemetry.hydrogenBombsBuilt) * 5_000_000n).toString();
+    telemetry.finalized = true;
+    saveTelemetry();
+  }
+
+  function processTurn(turn) {
+    if (!telemetryClientId || !turn?.intents) return;
+    for (const intent of turn.intents) {
+      if (intent.clientID !== telemetryClientId || intent.type !== "build_unit" || !trackedUnits.has(intent.unit)) continue;
+      pendingBuilds.push({ unit: intent.unit, turn: Number(turn.turnNumber) || 0 });
+    }
+  }
+
+  function processServerMessage(message) {
+    if (!message || typeof message !== "object") return;
+    if (message.type === "start") {
+      const gameId = message.gameStartInfo?.gameID || gameRoute().gameId;
+      beginTelemetry(gameId);
+      telemetryClientId = message.myClientID || telemetryClientId;
+      telemetry.infiniteGold = Boolean(message.gameStartInfo?.config?.infiniteGold);
+      telemetry.hostInfiniteGold = Boolean(message.gameStartInfo?.config?.hostCheats?.infiniteGold);
+      for (const turn of message.turns || []) processTurn(turn);
+      saveTelemetry();
+    } else if (message.type === "turn") {
+      processTurn(message.turn);
+    }
+  }
+
+  function confirmBuiltUnit(update) {
+    if (!telemetry || telemetryPlayerId === null || update?.ownerID !== telemetryPlayerId || !trackedUnits.has(update.unitType)) return;
+    if (seenUnitIds.has(update.id)) return;
+    seenUnitIds.add(update.id);
+    const pendingIndex = pendingBuilds.findIndex((item) => item.unit === update.unitType);
+    if (pendingIndex === -1) return;
+    pendingBuilds.splice(pendingIndex, 1);
+    const metric = trackedUnits.get(update.unitType);
+    telemetry[metric] = Number(telemetry[metric] || 0) + 1;
+    if (!telemetry.infiniteGold && update.unitType === "Atom Bomb") telemetry.atomBombGoldSpent = addDecimal(telemetry.atomBombGoldSpent, 750_000);
+    if (!telemetry.infiniteGold && update.unitType === "Hydrogen Bomb") telemetry.hydrogenBombGoldSpent = addDecimal(telemetry.hydrogenBombGoldSpent, 5_000_000);
+    saveTelemetry();
+  }
+
+  function processGameUpdate(update) {
+    const groups = update?.updates;
+    if (!groups) return;
+    for (const player of groups[updateTypes.player] || []) {
+      if (player.clientID && player.clientID === telemetryClientId) {
+        telemetryPlayerId = player.id;
+        if (player.isLobbyCreator && telemetry?.hostInfiniteGold) telemetry.infiniteGold = true;
+      }
+    }
+    for (const donation of groups[updateTypes.donate] || []) {
+      if (!telemetry || telemetryPlayerId === null || donation.senderId !== telemetryPlayerId) continue;
+      const key = donation.donationType === "troops" ? "donatedTroops" : "donatedGold";
+      telemetry[key] = addDecimal(telemetry[key], donation.amount);
+      saveTelemetry();
+    }
+    for (const unit of groups[updateTypes.unit] || []) confirmBuiltUnit(unit);
+    for (const win of groups[updateTypes.win] || []) finalizeTelemetry(win.allPlayersStats);
+    const tick = Number(update.tick) || 0;
+    pendingBuilds = pendingBuilds.filter((item) => tick - item.turn <= 20);
+  }
+
+  function processWorkerMessage(data) {
+    if (data?.type !== "game_update_batch" || !Array.isArray(data.gameUpdates)) return;
+    for (const update of data.gameUpdates) processGameUpdate(update);
+  }
+
+  function installTelemetryHooks() {
+    const page = typeof unsafeWindow === "object" ? unsafeWindow : window;
+    const OriginalWebSocket = page.WebSocket;
+    if (OriginalWebSocket && !OriginalWebSocket.__openFrontPartyTelemetry) {
+      const WrappedWebSocket = new Proxy(OriginalWebSocket, {
+        construct(target, args, newTarget) {
+          const socket = Reflect.construct(target, args, newTarget);
+          const url = String(args[0] || "");
+          if (/\/w\d+(?:\?|$)/.test(url) && !/\/lobbies(?:\?|$)/.test(url)) {
+            socket.addEventListener("message", (event) => {
+              try { processServerMessage(JSON.parse(event.data)); } catch {}
+            });
+            const send = socket.send;
+            socket.send = function (data) {
+              try {
+                const message = JSON.parse(data);
+                if (message.type === "winner") finalizeTelemetry(message.allPlayersStats);
+              } catch {}
+              return send.call(this, data);
+            };
+          }
+          return socket;
+        },
+      });
+      Object.defineProperty(WrappedWebSocket, "__openFrontPartyTelemetry", { value: true });
+      page.WebSocket = WrappedWebSocket;
+    }
+
+    const OriginalWorker = page.Worker;
+    if (OriginalWorker && !OriginalWorker.__openFrontPartyTelemetry) {
+      const WrappedWorker = new Proxy(OriginalWorker, {
+        construct(target, args, newTarget) {
+          const worker = Reflect.construct(target, args, newTarget);
+          worker.addEventListener("message", (event) => processWorkerMessage(event.data));
+          return worker;
+        },
+      });
+      Object.defineProperty(WrappedWorker, "__openFrontPartyTelemetry", { value: true });
+      page.Worker = WrappedWorker;
+    }
+  }
 
   function safeRelay(value) {
     try {
@@ -117,6 +315,9 @@
     const match = location.pathname.match(/^\/(?:((?:w\d+))\/)?game\/([^/]+)/);
     return match ? { worker: match[1] || null, gameId: match[2] } : { worker: null, gameId: null };
   }
+
+  beginTelemetry(gameRoute().gameId);
+  installTelemetryHooks();
 
   function openFrontLobbyAcknowledged(route) {
     if (!route.gameId) return false;
@@ -344,6 +545,53 @@
     return node;
   }
 
+  function compactNumber(value) {
+    let amount;
+    try { amount = BigInt(value ?? 0); } catch { return "0"; }
+    const units = [[1_000_000_000n, "B"], [1_000_000n, "M"], [1_000n, "K"]];
+    for (const [size, suffix] of units) {
+      if (amount < size) continue;
+      const whole = amount / size;
+      const decimalPart = (amount % size) * 10n / size;
+      return `${whole}${decimalPart ? `.${decimalPart}` : ""}${suffix}`;
+    }
+    return amount.toString();
+  }
+
+  function renderTelemetry(container) {
+    if (!telemetry || telemetry.gameId !== gameRoute().gameId) return;
+    const card = document.createElement("section");
+    card.className = "ofpc-telemetry";
+    const title = document.createElement("strong");
+    title.textContent = `MATCH DATA · ${telemetry.gameId}`;
+    const grid = document.createElement("div");
+    const metrics = [
+      ["Troops donated", compactNumber(telemetry.donatedTroops)],
+      ["Gold donated", compactNumber(telemetry.donatedGold)],
+      ["Ports", String(telemetry.portsBuilt || 0)],
+      ["Factories", String(telemetry.factoriesBuilt || 0)],
+      ["Atom bombs", String(telemetry.atomBombsBuilt || 0)],
+      ["Hydrogen bombs", String(telemetry.hydrogenBombsBuilt || 0)],
+      ["Nuke gold spent", compactNumber(addDecimal(telemetry.atomBombGoldSpent, telemetry.hydrogenBombGoldSpent))],
+      ["Gold generated", telemetry.finalized ? compactNumber(telemetry.goldGenerated) : "Finalizing…"],
+    ];
+    for (const [label, value] of metrics) {
+      const item = document.createElement("div");
+      const name = document.createElement("small");
+      const number = document.createElement("b");
+      name.textContent = label;
+      number.textContent = value;
+      item.append(name, number);
+      grid.append(item);
+    }
+    const note = document.createElement("p");
+    note.textContent = telemetry.finalized
+      ? "Final values confirmed by OpenFront match stats. Stored locally."
+      : "Live local counters. Total generated gold is confirmed when the match ends.";
+    card.append(title, grid, note);
+    container.append(card);
+  }
+
   function renderMovedEvent(container, event) {
     const card = document.createElement("section");
     card.className = "ofpc-moved";
@@ -391,6 +639,8 @@
     summary.className = "ofpc-summary";
     summary.innerHTML = `<span>${connected ? "●" : "○"} ${connected ? "Connected" : "Reconnecting"}</span><strong>${room?.members?.length || 0} members</strong><small>${phaseLabels[detected.phase] || detected.phase}</small>`;
     body.append(summary);
+
+    renderTelemetry(body);
 
     if (pendingCommand && detected.phase !== "ready") {
       const pending = document.createElement("div");
@@ -499,6 +749,13 @@
     #openfront-party-companion .ofpc-summary { display:grid; grid-template-columns:1fr auto; gap:3px 8px; padding:8px; border:1px solid rgba(148,163,184,.18); border-radius:8px; }
     #openfront-party-companion .ofpc-summary span { color:#74e9a0; font-weight:700; }
     #openfront-party-companion .ofpc-summary small { grid-column:1/-1; color:#9fb2c9; }
+    #openfront-party-companion .ofpc-telemetry { display:grid; gap:7px; padding:8px; border:1px solid rgba(98,176,255,.24); border-radius:8px; background:rgba(12,27,44,.72); }
+    #openfront-party-companion .ofpc-telemetry > strong { color:#62b0ff; font-size:9px; letter-spacing:.1em; }
+    #openfront-party-companion .ofpc-telemetry > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; }
+    #openfront-party-companion .ofpc-telemetry > div > div { display:grid; gap:2px; min-width:0; padding:6px; border-radius:6px; background:rgba(20,31,48,.82); }
+    #openfront-party-companion .ofpc-telemetry small { overflow:hidden; color:#9fb2c9; font-size:8px; text-overflow:ellipsis; white-space:nowrap; }
+    #openfront-party-companion .ofpc-telemetry b { color:#edf6ff; font:700 12px ui-monospace,monospace; }
+    #openfront-party-companion .ofpc-telemetry p { margin:0; color:#8298b2; font-size:8px; line-height:1.4; }
     #openfront-party-companion .ofpc-moved { padding:10px; border:1px solid rgba(251,191,36,.58); border-radius:9px; background:rgba(71,49,8,.48); animation:ofpc-slide .22s ease-out; }
     #openfront-party-companion .ofpc-moved > strong { color:#ffd66e; font-size:10px; letter-spacing:.1em; }
     #openfront-party-companion .ofpc-moved p { margin:5px 0 9px; color:#f5e7c2; line-height:1.45; }
