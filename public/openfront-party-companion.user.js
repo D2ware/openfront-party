@@ -741,7 +741,13 @@
 
     const summary = document.createElement("div");
     summary.className = "ofpc-summary";
-    summary.innerHTML = `<span>${connected ? "●" : "○"} ${connected ? "Connected" : "Reconnecting"}</span><strong>${room?.members?.length || 0} members</strong><small>${phaseLabels[detected.phase] || detected.phase}</small>`;
+    const connectionState = document.createElement("span");
+    connectionState.textContent = `${connected ? "●" : "○"} ${connected ? "Connected" : "Reconnecting"}`;
+    const memberCount = document.createElement("strong");
+    memberCount.textContent = `${room?.members?.length || 0} members`;
+    const currentPhase = document.createElement("small");
+    currentPhase.textContent = phaseLabels[detected.phase] || detected.phase;
+    summary.append(connectionState, memberCount, currentPhase);
     body.append(summary);
 
     renderTelemetry(body);
@@ -760,7 +766,14 @@
     squad.append(label);
     for (const item of room?.members || []) {
       const row = document.createElement("div");
-      row.innerHTML = `<span class="dot ${item.phase}"></span><b>${item.name}</b><small>${phaseLabels[item.phase] || item.phase}${item.roundId ? ` · R${item.roundId}` : ""}</small>`;
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      if (Object.hasOwn(phaseLabels, item.phase)) dot.classList.add(item.phase);
+      const name = document.createElement("b");
+      name.textContent = item.name;
+      const phase = document.createElement("small");
+      phase.textContent = `${phaseLabels[item.phase] || item.phase}${item.roundId ? ` · R${item.roundId}` : ""}`;
+      row.append(dot, name, phase);
       squad.append(row);
     }
     body.append(squad);
@@ -796,7 +809,13 @@
     root.className = "collapsed";
     const header = document.createElement("header");
     const title = document.createElement("div");
-    title.innerHTML = `<span class="ofpc-status"></span><strong>PARTY</strong><small>COMPANION</small>`;
+    const status = document.createElement("span");
+    status.className = "ofpc-status";
+    const heading = document.createElement("strong");
+    heading.textContent = "PARTY";
+    const badge = document.createElement("small");
+    badge.textContent = "COMPANION";
+    title.append(status, heading, badge);
     const collapse = button("⌄", () => { collapsed = !collapsed; render(); }, "ofpc-collapse");
     header.append(title, collapse);
     body = document.createElement("div");

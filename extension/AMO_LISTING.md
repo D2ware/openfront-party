@@ -1,4 +1,4 @@
-# AMO listing copy — OpenFront Party Companion 1.0.1
+# AMO listing copy — OpenFront Party Companion 1.0.2
 
 ## Name
 
@@ -65,4 +65,4 @@ navigation, Ready-state controls, and finalized match summaries.
 
 Paste the contents of `extension/AMO_REVIEW.md` into the reviewer-notes field.
 If AMO requests source code, upload
-`dist/openfront-party-firefox-source-1.0.1.zip`.
+`dist/openfront-party-firefox-source-1.0.2.zip`.

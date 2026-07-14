@@ -20,7 +20,7 @@ npm run build:extensions -- https://moss.nonekode.fi
 The Firefox package is written to:
 
 ```text
-dist/openfront-party-firefox-1.0.1.xpi
+dist/openfront-party-firefox-1.0.2.xpi
 ```
 
 The runtime files used to produce it are:

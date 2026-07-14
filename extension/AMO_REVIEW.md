@@ -1,4 +1,4 @@
-# AMO reviewer notes — OpenFront Party Companion 1.0.1
+# AMO reviewer notes — OpenFront Party Companion 1.0.2
 
 ## Single purpose
 
