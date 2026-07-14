@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 
 const root = path.resolve(__dirname, "..");
 const output = path.join(root, "_site");
@@ -38,6 +39,21 @@ fs.writeFileSync(
     userscriptPath: "../openfront-party-companion.user.js",
   }, null, 2)});\n`,
 );
+
+const viewerOutput = path.join(output, "viewer");
+const assetVersion = crypto.createHash("sha256")
+  .update(fs.readFileSync(path.join(viewerOutput, "styles.css")))
+  .update(fs.readFileSync(path.join(viewerOutput, "party.js")))
+  .update(fs.readFileSync(path.join(viewerOutput, "config.js")))
+  .digest("hex")
+  .slice(0, 12);
+const viewerHtmlPath = path.join(viewerOutput, "index.html");
+const viewerHtml = fs.readFileSync(viewerHtmlPath, "utf8")
+  .replace('href="styles.css"', `href="styles.css?v=${assetVersion}"`)
+  .replace('src="config.js"', `src="config.js?v=${assetVersion}"`)
+  .replace('src="party.js"', `src="party.js?v=${assetVersion}"`);
+fs.writeFileSync(viewerHtmlPath, viewerHtml);
+
 fs.writeFileSync(
   path.join(output, "index.html"),
   `<!doctype html>
@@ -56,3 +72,4 @@ fs.writeFileSync(
 
 console.log(`GitHub Pages artifact created in ${output}`);
 console.log(`Party relay: ${relay}`);
+console.log(`Viewer asset version: ${assetVersion}`);
