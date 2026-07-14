@@ -12,7 +12,7 @@ const MAX_MESSAGE_BYTES = 8 * 1024;
 const MAX_HTTP_BODY_BYTES = 16 * 1024;
 const HEARTBEAT_MS = 25_000;
 const STALE_VIEWER_MS = 70_000;
-const VIEWER_RECONNECT_GRACE_MS = 5 * 60_000;
+const VIEWER_RECONNECT_GRACE_MS = 60_000;
 const COMPANION_GRACE_MS = 30 * 60_000;
 const COMPANION_TICKET_MS = 60_000;
 const JOIN_COMMAND_MS = 20_000;
@@ -113,6 +113,18 @@ function isCompanionFresh(member, maxAge = STALE_VIEWER_MS) {
   return Boolean(member.companionTokenHash && member.companionLastSeen && member.companionLastSeen >= Date.now() - maxAge);
 }
 
+function isViewerConnected(member) {
+  return member.socket?.readyState === WebSocket.OPEN;
+}
+
+function isMemberPresent(member) {
+  return isViewerConnected(member) || isCompanionFresh(member);
+}
+
+function callsignKey(value) {
+  return cleanText(value, 24).normalize("NFKC").toLocaleLowerCase("en-US");
+}
+
 function publicMember(member) {
   return {
     id: member.id,
@@ -125,7 +137,7 @@ function publicMember(member) {
     worker: member.worker,
     roundId: member.roundId,
     catchUpRoundId: member.catchUpRoundId,
-    viewerConnected: member.socket?.readyState === WebSocket.OPEN,
+    viewerConnected: isViewerConnected(member),
     companionConnected: isCompanionFresh(member),
   };
 }
@@ -378,8 +390,14 @@ function createRoom(member, name, options = {}) {
 }
 
 function joinRoom(member, room, name, role = "member") {
+  const cleanedName = cleanText(name, 24) || "Player";
+  const duplicate = [...room.members].find((item) => item !== member && callsignKey(item.name) === callsignKey(cleanedName));
+  if (duplicate) {
+    sendError(member, "That callsign is already in this party. Reconnect the original browser or choose another callsign.");
+    return false;
+  }
   if (member.room) removeMember(member);
-  member.name = cleanText(name, 24) || "Player";
+  member.name = cleanedName;
   member.role = role;
   member.phase = "watching";
   member.filterPreference = { summary: "All public lobbies", matchingLobbyIds: [] };
@@ -392,6 +410,7 @@ function joinRoom(member, room, name, role = "member") {
   room.members.add(member);
   recomputeDemocracy(room);
   bump(room);
+  return true;
 }
 
 function allowed(member, type) {
@@ -442,13 +461,14 @@ function launchParty(member, message) {
     return sendError(member, "That lobby is starting too soon for a coordinated launch.");
   }
 
-  const readyMembers = [...room.members].filter((item) => item.phase === "ready");
+  const presentMembers = [...room.members].filter(isMemberPresent);
+  const readyMembers = presentMembers.filter((item) => item.phase === "ready");
   if (!readyMembers.length) return sendError(member, "No party members are Ready.");
-  if (attendance === "all" && readyMembers.length !== room.members.size) {
+  if (attendance === "all" && readyMembers.length !== presentMembers.length) {
     return sendError(member, "Some members are still playing or not Ready. Choose Launch ready members to split the party.");
   }
 
-  const participants = attendance === "all" ? [...room.members] : readyMembers;
+  const participants = attendance === "all" ? presentMembers : readyMembers;
   const reserve = Math.max(2, Math.ceil(participants.length * 0.25));
   const openSlots = lobby.capacity - lobby.players;
   if (openSlots < participants.length + reserve) return sendError(member, `The lobby needs ${participants.length + reserve} open slots for this launch.`);
@@ -461,7 +481,7 @@ function launchParty(member, message) {
     lobby,
     attendance,
     participantIds: new Set(participants.map((item) => item.id)),
-    leftBehindIds: new Set([...room.members].filter((item) => !participants.includes(item)).map((item) => item.id)),
+    leftBehindIds: new Set(presentMembers.filter((item) => !participants.includes(item)).map((item) => item.id)),
     acknowledgedIds: new Set(),
     issuedAt: now,
     expiresAt: now + JOIN_COMMAND_MS,
@@ -639,15 +659,17 @@ async function handleRequest(req, res) {
     const groups = [...rooms.values()]
       .filter((room) => room.isPublic)
       .map((room) => {
-        const leader = [...room.members].find((member) => member.role === "leader");
+        const members = [...room.members].filter(isMemberPresent);
+        const leader = members.find((member) => member.role === "leader") || members[0];
         return {
           code: room.code,
           leader: leader?.name || "Unknown",
-          members: room.members.size,
+          members: members.length,
           decisionMode: room.decisionMode,
           selectedLobby: room.selectedLobby ? { name: room.selectedLobby.name, mode: room.selectedLobby.mode, players: room.selectedLobby.players, capacity: room.selectedLobby.capacity } : null,
         };
       })
+      .filter((room) => room.members > 0)
       .sort((a, b) => b.members - a.members || a.code.localeCompare(b.code));
     json(res, 200, { groups }); return;
   }

@@ -2467,6 +2467,28 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
 .partyCardJoin:hover { background: rgba(22, 101, 52, 0.88); }
 .partyCardJoin:disabled { cursor: default; opacity: 0.7; }
 
+.partyLaunchNotice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(98, 176, 255, 0.5);
+  border-radius: var(--r-md);
+  background: linear-gradient(105deg, rgba(20, 54, 82, 0.78), rgba(11, 25, 40, 0.82));
+}
+.partyLaunchNotice[hidden] { display: none; }
+.partyLaunchNotice.is-left-behind { border-color: rgba(251, 191, 36, 0.48); background: linear-gradient(105deg, rgba(68, 48, 12, 0.62), rgba(25, 26, 29, 0.8)); }
+.partyLaunchNoticeDot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: var(--accent-strong); box-shadow: 0 0 12px rgba(98, 176, 255, 0.46); }
+.partyLaunchNotice.is-left-behind .partyLaunchNoticeDot { background: var(--warn); box-shadow: 0 0 12px rgba(251, 191, 36, 0.4); }
+.partyLaunchNotice > div { min-width: 0; margin-right: auto; }
+.partyLaunchNotice strong,
+.partyLaunchNotice > div span { display: block; }
+.partyLaunchNotice strong { overflow: hidden; color: var(--text); font-size: 11px; text-overflow: ellipsis; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+.partyLaunchNotice > div span { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.partyLaunchNotice button { width: auto; min-width: 118px; border-color: rgba(98, 176, 255, 0.48); color: #deefff; background: rgba(30, 77, 116, 0.72); }
+.partyLaunchNotice.is-left-behind button { border-color: rgba(251, 191, 36, 0.42); color: #fff0bd; background: rgba(88, 60, 10, 0.58); }
+
 .partyReadyLine {
   display: flex;
   align-items: center;
@@ -2504,6 +2526,8 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
 .partyReadyLine > div span { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .partyReadyLine button { width: auto; min-width: 112px; border-color: rgba(74, 222, 128, 0.44); color: #d8ffe7; background: rgba(20, 83, 45, 0.56); }
 .partyReadyLine.is-ready button { border-color: rgba(248, 113, 113, 0.30); color: #ffc4c8; background: rgba(91, 28, 35, 0.34); }
+.partyMemberCard.is-reconnecting { opacity: 0.62; }
+.partyMemberCard.is-reconnecting .partyMemberStateDot { background: var(--warn); }
 
 .partyCompanionLine {
   display: flex;
@@ -2657,8 +2681,10 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
   .partyCodeLine { flex-wrap: wrap; }
   .partyLiveCount { margin-left: 0; }
   .partyCodeLine #partyLeave { margin-left: auto; }
+  .partyLaunchNotice,
   .partyReadyLine,
   .partyCompanionLine { align-items: stretch; flex-direction: column; }
+  .partyLaunchNotice button,
   .partyReadyLine button { width: 100%; }
   .partyCompanionActions { align-items: stretch; flex-direction: column; }
   .partyCompanionActions a,

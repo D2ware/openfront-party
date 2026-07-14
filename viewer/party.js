@@ -20,6 +20,10 @@
     copy: byId("partyCopy"),
     leave: byId("partyLeave"),
     liveCount: byId("partyLiveCount"),
+    launchNotice: byId("partyLaunchNotice"),
+    launchNoticeTitle: byId("partyLaunchNoticeTitle"),
+    launchNoticeStatus: byId("partyLaunchNoticeStatus"),
+    openLaunch: byId("partyOpenLaunch"),
     members: byId("partyMembers"),
     memberCount: byId("partyMemberCount"),
     modeHelp: byId("partyModeHelp"),
@@ -598,13 +602,17 @@
 
   function renderMembers() {
     el.members.replaceChildren();
-    el.memberCount.textContent = `${room.members.length} connected`;
-    el.liveCount.textContent = `${room.members.length} member${room.members.length === 1 ? "" : "s"}`;
+    const presentMembers = room.members.filter((member) => member.viewerConnected || member.companionConnected);
+    const reconnecting = room.members.length - presentMembers.length;
+    el.memberCount.textContent = `${presentMembers.length} connected${reconnecting ? ` · ${reconnecting} reconnecting` : ""}`;
+    el.liveCount.textContent = `${presentMembers.length} member${presentMembers.length === 1 ? "" : "s"}`;
 
     const ordered = [...room.members].sort((a, b) => Number(b.role === "leader") - Number(a.role === "leader"));
     for (const member of ordered) {
       const card = document.createElement("article");
       card.className = `partyMemberCard state-${member.state}`;
+      const present = member.viewerConnected || member.companionConnected;
+      card.classList.toggle("is-reconnecting", !present);
       const dot = document.createElement("span");
       dot.className = "partyMemberStateDot";
       const identity = document.createElement("div");
@@ -615,8 +623,8 @@
       const badges = document.createElement("div");
       badges.className = "partyMemberBadges";
       const ready = member.phase === "ready";
-      const readiness = ready ? (member.companionConnected ? "Ready + auto" : "Ready") : "Not ready";
-      createText(badges, "span", readiness, `partyMemberLaunchState${ready ? " is-launchable" : ""}`);
+      const readiness = !present ? "Reconnecting" : ready ? (member.companionConnected ? "Ready + auto" : "Ready") : "Not ready";
+      createText(badges, "span", readiness, `partyMemberLaunchState${present && ready ? " is-launchable" : ""}`);
       const preference = createText(badges, "span", member.filterPreference?.summary || "All public lobbies", "partyMemberPreference");
       preference.title = member.filterPreference?.summary || "All public lobbies";
       card.prepend(dot, identity);
@@ -702,6 +710,17 @@
     el.modeHelp.textContent = room.decisionMode === "democracy" ? "One vote per member. Change your vote by choosing another lobby." : "The leader proposes and confirms the lobby.";
     el.settingsSummary.textContent = `${room.isPublic ? "Listed" : "Private"} · ${room.decisionMode === "democracy" ? "Democracy" : "Dictator"}`;
     el.filterSummary.textContent = currentFilterPreference.summary;
+    const launch = room.currentLaunch;
+    const launchedWithParty = Boolean(launch?.participantIds?.includes(current.id));
+    el.launchNotice.hidden = !launch;
+    if (launch) {
+      el.launchNotice.classList.toggle("is-left-behind", !launchedWithParty);
+      el.launchNoticeTitle.textContent = `${launch.lobby.name || "Selected lobby"} · party launched`;
+      el.launchNoticeStatus.textContent = launchedWithParty
+        ? "Your browser did not move? Open the lobby here."
+        : "You were not Ready and were left behind. You can still open the lobby manually.";
+      el.openLaunch.textContent = launchedWithParty ? "Open lobby" : "Open lobby anyway";
+    }
     el.companionStatus.textContent = current.companionConnected
       ? `Userscript linked · ${stateLabels[current.phase] || current.phase}`
       : "Optional. Install the userscript to make an OpenFront tab follow launches.";
@@ -1015,6 +1034,14 @@
         ? "You will be included in the next launch."
         : "You will not be included until you mark Ready again.", next === "ready" ? "success" : "info");
     }
+  });
+  el.openLaunch.addEventListener("click", () => {
+    const lobby = room?.currentLaunch?.lobby;
+    if (!lobby) return;
+    send("member.state", { state: "opening-game" });
+    openFrontWindow = window.open(officialGameUrl(lobby), openFrontWindowName);
+    window.OPENFRONT_PARTY_OPENFRONT_WINDOW = openFrontWindow;
+    if (!openFrontWindow) showToast("OpenFront tab blocked", "Allow popups, then choose Open lobby again.", "warning");
   });
 
   document.addEventListener("pointerover", (event) => {

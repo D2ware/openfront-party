@@ -191,6 +191,73 @@ test("party members can report Ready from the viewer connection", async (t) => {
   assert.deepEqual(new Set(launchedSnapshot.room.currentLaunch.participantIds), new Set([leaderWelcome.clientId, memberWelcome.clientId]));
 });
 
+test("duplicate callsigns are rejected and detached viewers do not keep parties active", async (t) => {
+  const relay = await startRelay();
+  const leader = new TestClient(relay.wsUrl);
+  const member = new TestClient(relay.wsUrl);
+  const duplicate = new TestClient(relay.wsUrl);
+  t.after(() => {
+    leader.close();
+    member.close();
+    duplicate.close();
+    relay.child.kill();
+  });
+
+  await Promise.all([leader.open(), member.open(), duplicate.open()]);
+  await Promise.all([
+    leader.take((message) => message.type === "session.welcome"),
+    member.take((message) => message.type === "session.welcome"),
+    duplicate.take((message) => message.type === "session.welcome"),
+  ]);
+
+  leader.send("group.create", { name: "Alpha", decisionMode: "dictator", isPublic: true });
+  const created = await leader.take((message) => message.type === "group.snapshot" && message.room.members.length === 1);
+  duplicate.send("group.join", { name: "alpha", code: created.room.code });
+  const duplicateError = await duplicate.take((message) => message.type === "group.error");
+  assert.match(duplicateError.message, /callsign is already/i);
+
+  member.send("group.join", { name: "Bravo", code: created.room.code });
+  await leader.take((message) => message.type === "group.snapshot" && message.room.members.length === 2);
+  leader.send("member.state", { state: "ready" });
+  member.send("member.state", { state: "ready" });
+  await leader.take((message) => message.type === "group.snapshot" && message.room.members.every((item) => item.phase === "ready"));
+
+  const memberClosed = new Promise((resolve) => member.socket.once("close", resolve));
+  member.close();
+  await memberClosed;
+  await leader.take((message) => message.type === "group.snapshot" && message.room.members.some((item) => item.name === "Bravo" && item.viewerConnected === false));
+
+  const listed = await jsonRequest(relay.origin, "/api/groups");
+  assert.equal(listed.groups.find((group) => group.code === created.room.code)?.members, 1);
+
+  const lobby = {
+    id: "DETACHEDVIEWER1",
+    name: "Cleanup test",
+    map: "Cleanup test",
+    mode: "Teams",
+    server: "w1",
+    players: 1,
+    capacity: 100,
+    startsAt: Date.now() + 60_000,
+  };
+  leader.send("member.observe_lobby", { lobby, observedAt: Date.now() });
+  leader.send("leader.select_lobby", { lobby });
+  await leader.take((message) => message.type === "group.snapshot" && message.room.selectedLobby?.id === lobby.id);
+  leader.send("leader.launch", { attendance: "all", lobby });
+  const launch = await leader.take((message) => message.type === "launch.accepted");
+  assert.equal(launch.participants, 1);
+
+  const leaderClosed = new Promise((resolve) => leader.socket.once("close", resolve));
+  leader.close();
+  await leaderClosed;
+  let remaining = await jsonRequest(relay.origin, "/api/groups");
+  for (let attempt = 0; attempt < 20 && remaining.groups.some((group) => group.code === created.room.code); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    remaining = await jsonRequest(relay.origin, "/api/groups");
+  }
+  assert.equal(remaining.groups.some((group) => group.code === created.room.code), false);
+});
+
 test("connected companions launch into an observed lobby and split members receive a persistent move event", async (t) => {
   const relay = await startRelay();
   const leader = new TestClient(relay.wsUrl);

@@ -23,6 +23,8 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.match(config, /https:\/\/relay\.example\.com/);
   assert.match(viewerHtml, /id="partyReadyToggle"/);
   assert.match(viewerHtml, /id="partyReadyStatus"/);
+  assert.match(viewerHtml, /id="partyLaunchNotice"/);
+  assert.match(viewerHtml, /id="partyOpenLaunch"/);
   assert.match(viewerHtml, /href="styles\.css\?v=[a-f0-9]{12}"/);
   assert.match(viewerHtml, /src="config\.js\?v=[a-f0-9]{12}"/);
   assert.match(viewerHtml, /src="party\.js\?v=[a-f0-9]{12}"/);
@@ -30,6 +32,8 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.match(partyClient, /You will be included in the next launch/);
   assert.doesNotMatch(partyClient, /tabReady.*prepareOpenFrontWindow/);
   assert.match(partyClient, /windowState\.tone !== "stable"/);
+  assert.match(partyClient, /You were not Ready and were left behind/);
+  assert.match(partyClient, /viewerConnected \|\| member\.companionConnected/);
   assert.doesNotMatch(partyClient, /Needs companion/);
   assert.match(partyClient, /openfront\.io\/game\/\$\{encodeURIComponent\(lobby\?\.id/);
   assert.match(partyClient, /openFrontWindowName = "openfront-party-game"/);
