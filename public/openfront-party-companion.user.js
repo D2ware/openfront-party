@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenFront Party Companion
 // @namespace    openfront-party-coordinator
-// @version      0.4.0
+// @version      0.4.2
 // @description  Keeps an opt-in party connected and shares finalized match summaries with the party history.
 // @match        https://openfront.io/*
 // @run-at       document-start
@@ -293,6 +293,22 @@
         construct(target, args, newTarget) {
           const worker = Reflect.construct(target, args, newTarget);
           worker.addEventListener("message", (event) => processWorkerMessage(event.data));
+          const postMessage = worker.postMessage;
+          worker.postMessage = function (message, transfer) {
+            try {
+              if (message?.type === "init") {
+                const gameId = message.gameStartInfo?.gameID || gameRoute().gameId;
+                beginTelemetry(gameId);
+                telemetryClientId = message.clientID || telemetryClientId;
+                telemetry.infiniteGold = Boolean(message.gameStartInfo?.config?.infiniteGold);
+                telemetry.hostInfiniteGold = Boolean(message.gameStartInfo?.config?.hostCheats?.infiniteGold);
+                saveTelemetry();
+              } else if (message?.type === "turn") {
+                processTurn(message.turn);
+              }
+            } catch {}
+            return transfer === undefined ? postMessage.call(this, message) : postMessage.call(this, message, transfer);
+          };
           return worker;
         },
       });
@@ -383,11 +399,7 @@
     if (location.search.includes("replay")) return true;
     const modal = document.querySelector("win-modal");
     if (!modal) return false;
-    if (modal.isVisible === true) return true;
-    if (!modal.textContent.trim()) return false;
-    const rect = modal.getBoundingClientRect();
-    const style = getComputedStyle(modal);
-    return style.display !== "none" && style.visibility !== "hidden" && (rect.width > 0 || rect.height > 0);
+    return modal.isVisible === true;
   }
 
   function detectPhase() {
@@ -442,8 +454,7 @@
   }
 
   function officialGameUrl(event) {
-    const workerPath = /^w\d+$/.test(String(event.worker || "")) ? String(event.worker) : "w0";
-    return `https://openfront.io/${encodeURIComponent(workerPath)}/game/${encodeURIComponent(event.gameId)}`;
+    return `https://openfront.io/game/${encodeURIComponent(event.gameId)}`;
   }
 
   async function handleJoinCommand(event) {
@@ -643,7 +654,9 @@
     const note = document.createElement("p");
     note.textContent = telemetry.finalized
       ? (telemetry.uploadedAt ? "Final values shared with Match History and stored locally." : "Final values stored locally; Match History upload is pending.")
-      : "Live local counters. Total generated gold is confirmed when the match ends.";
+      : telemetryClientId
+        ? "Live capture active. Total generated gold is confirmed when the match ends."
+        : "Waiting for the OpenFront match stream. Reload this tab if the match was already open when the companion updated.";
     card.append(title, grid, note);
     container.append(card);
   }

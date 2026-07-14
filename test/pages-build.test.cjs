@@ -40,7 +40,8 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.match(partyClient, /You were not Ready and were left behind/);
   assert.match(partyClient, /viewerConnected \|\| member\.companionConnected/);
   assert.doesNotMatch(partyClient, /Needs companion/);
-  assert.match(partyClient, /openfront\.io\/\$\{encodeURIComponent\(workerPath\)\}\/game\/\$\{encodeURIComponent\(lobby\?\.id/);
+  assert.match(partyClient, /openfront\.io\/game\/\$\{encodeURIComponent\(lobby\?\.id/);
+  assert.doesNotMatch(partyClient, /openfront\.io\/\$\{encodeURIComponent\(workerPath\)\}\/game/);
   assert.match(partyClient, /openFrontWindowName = "openfront-party-game"/);
   assert.match(partyClient, /prepareOpenFrontWindow\(\)/);
   assert.match(partyClient, /openFrontWindow\.location\.href = url/);
@@ -52,8 +53,15 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.doesNotMatch(partyClient, /location\.assign\(officialGameUrl\(launch\.lobby\)\)/);
   assert.match(partyClient, /current\.companionConnected/);
   assert.match(viewerHtml, /OPENFRONT_PARTY_OPENFRONT_WINDOW = window\.open\(card\.dataset\.joinUrl, "openfront-party-game"\)/);
-  assert.match(companion, /openfront\.io\/\$\{encodeURIComponent\(workerPath\)\}\/game\/\$\{encodeURIComponent\(event\.gameId\)\}/);
-  assert.match(companion, /@version\s+0\.4\.0/);
+  assert.match(viewerHtml, /https:\/\/openfront\.io\/game\/\$\{encodeURIComponent\(gameID\)\}/);
+  assert.doesNotMatch(viewerHtml, /https:\/\/openfront\.io\/\$\{encodeURIComponent\(workerPath\)\}\/game/);
+  assert.match(companion, /openfront\.io\/game\/\$\{encodeURIComponent\(event\.gameId\)\}/);
+  assert.doesNotMatch(companion, /openfront\.io\/\$\{encodeURIComponent\(workerPath\)\}\/game/);
+  assert.match(companion, /@version\s+0\.4\.2/);
+  assert.match(companion, /message\?\.type === "init"/);
+  assert.match(companion, /message\?\.type === "turn"/);
+  assert.match(companion, /return modal\.isVisible === true/);
+  assert.doesNotMatch(companion, /modal\.getBoundingClientRect\(\)/);
   assert.match(companion, /\/api\/companion\/matches/);
   assert.match(companion, /@grant\s+unsafeWindow/);
   assert.match(companion, /donate: 24/);

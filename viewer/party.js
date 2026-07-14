@@ -142,8 +142,7 @@
   }
 
   function officialGameUrl(lobby) {
-    const workerPath = /^w\d+$/.test(String(lobby?.server || "")) ? String(lobby.server) : "w0";
-    return `https://openfront.io/${encodeURIComponent(workerPath)}/game/${encodeURIComponent(lobby?.id || "")}`;
+    return `https://openfront.io/game/${encodeURIComponent(lobby?.id || "")}`;
   }
 
   function prepareOpenFrontWindow() {

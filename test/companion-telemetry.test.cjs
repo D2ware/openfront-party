@@ -30,7 +30,15 @@ test("companion records confirmed local match telemetry from OpenFront messages"
     }
   }
 
-  class MockWorker extends EventTarget {}
+  class MockWorker extends EventTarget {
+    constructor() {
+      super();
+      this.sent = [];
+    }
+    postMessage(message, transfer) {
+      this.sent.push({ message, transfer });
+    }
+  }
 
   const document = {
     readyState: "loading",
@@ -69,22 +77,20 @@ test("companion records confirmed local match telemetry from OpenFront messages"
 
   vm.runInContext(companionSource, context);
 
-  const socket = new page.WebSocket("wss://openfront.io/w2");
-  socket.dispatchEvent(messageEvent(JSON.stringify({
-    type: "start",
-    myClientID: "CLIENT01",
+  new page.WebSocket("wss://openfront.io/w2");
+  const worker = new page.Worker("/assets/game-worker.js");
+  worker.postMessage({
+    type: "init",
+    clientID: "CLIENT01",
     gameStartInfo: { gameID: "GAME1234" },
-    turns: [],
-  })));
-  socket.dispatchEvent(messageEvent(JSON.stringify({
+  });
+  worker.postMessage({
     type: "turn",
     turn: {
       turnNumber: 10,
       intents: [{ type: "build_unit", unit: "Port", tile: 42, clientID: "CLIENT01" }],
     },
-  })));
-
-  const worker = new page.Worker("/assets/game-worker.js");
+  });
   const updates = Array.from({ length: 25 }, () => []);
   updates[2].push({ type: 2, id: 7, clientID: "CLIENT01" });
   updates[1].push({ type: 1, id: 99, ownerID: 7, unitType: "Port" });
@@ -109,6 +115,7 @@ test("companion records confirmed local match telemetry from OpenFront messages"
   worker.dispatchEvent(messageEvent({ type: "game_update_batch", gameUpdates: [{ tick: 20, updates: winUpdates }] }));
 
   const sessions = values.get("openfront-party-match-telemetry-v1");
+  assert.equal(worker.sent.length, 2, "companion must preserve worker postMessage calls");
   assert.deepEqual(JSON.parse(JSON.stringify(sessions.GAME1234)), {
     gameId: "GAME1234",
     startedAt: sessions.GAME1234.startedAt,
