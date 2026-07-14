@@ -29,6 +29,9 @@
     companionStatus: byId("partyCompanionStatus"),
     installCompanion: byId("partyInstallCompanion"),
     connectOpenFront: byId("partyConnectOpenFront"),
+    readyLine: byId("partyReadyLine"),
+    readyStatus: byId("partyReadyStatus"),
+    readyToggle: byId("partyReadyToggle"),
     selectionBar: byId("partySelectionBar"),
     selectionTitle: byId("partySelectionTitle"),
     selectionHint: byId("partySelectionHint"),
@@ -562,12 +565,21 @@
       const dot = document.createElement("span");
       dot.className = "partyMemberStateDot";
       const identity = document.createElement("div");
+      identity.className = "partyMemberIdentity";
       createText(identity, "strong", member.name);
-      createText(identity, "span", member.role === "leader" ? "Party leader" : (stateLabels[member.state] || member.state));
-      const preference = createText(card, "span", member.filterPreference?.summary || "All public lobbies", "partyMemberPreference");
+      const role = member.role === "leader" ? "Party leader" : "Party member";
+      createText(identity, "span", `${role} · ${stateLabels[member.phase] || member.phase}`);
+      const badges = document.createElement("div");
+      badges.className = "partyMemberBadges";
+      const launchable = member.phase === "ready" && member.companionConnected;
+      const readiness = member.phase === "ready"
+        ? (member.companionConnected ? "Launchable" : "Needs companion")
+        : "Not ready";
+      createText(badges, "span", readiness, `partyMemberLaunchState${launchable ? " is-launchable" : member.phase === "ready" ? " needs-companion" : ""}`);
+      const preference = createText(badges, "span", member.filterPreference?.summary || "All public lobbies", "partyMemberPreference");
       preference.title = member.filterPreference?.summary || "All public lobbies";
       card.prepend(dot, identity);
-      card.append(preference);
+      card.append(badges);
       el.members.append(card);
     }
   }
@@ -653,6 +665,16 @@
       ? `Connected · ${stateLabels[current.phase] || current.phase}`
       : "Not linked on this browser yet.";
     el.connectOpenFront.textContent = current.companionConnected ? "Reconnect OpenFront" : "Connect OpenFront";
+    const ready = current.phase === "ready";
+    const canSetReady = ["watching", "finished", "failed", "ready"].includes(current.phase);
+    el.readyLine.classList.toggle("is-ready", ready);
+    el.readyLine.classList.toggle("is-launchable", ready && current.companionConnected);
+    el.readyToggle.setAttribute("aria-pressed", String(ready));
+    el.readyToggle.disabled = !canSetReady;
+    el.readyToggle.textContent = ready ? "Set not ready" : canSetReady ? "I'm ready" : "In current game";
+    el.readyStatus.textContent = ready
+      ? (current.companionConnected ? "Ready and linked — you can launch." : "Ready — connect the companion to launch.")
+      : canSetReady ? "Not ready for the next lobby." : `${stateLabels[current.phase] || current.phase} — finish before marking Ready.`;
     document.querySelectorAll("[data-room-mode]").forEach((button) => {
       const selected = button.dataset.roomMode === room.decisionMode;
       button.classList.toggle("active", selected);
@@ -674,7 +696,9 @@
     if (!room || !isLeader()) return;
     document.querySelector(".partyLaunchDialog")?.remove();
     const readyMembers = room.members.filter((member) => member.phase === "ready" && member.companionConnected);
-    const waitingMembers = room.members.filter((member) => member.phase !== "ready" || !member.companionConnected);
+    const missingCompanion = room.members.filter((member) => member.phase === "ready" && !member.companionConnected);
+    const notReadyMembers = room.members.filter((member) => member.phase !== "ready");
+    const waitingMembers = [...missingCompanion, ...notReadyMembers];
     const telemetry = joinTelemetry(game);
     const dialog = document.createElement("dialog");
     dialog.className = "partyLaunchDialog";
@@ -685,20 +709,25 @@
     const groups = document.createElement("div");
     groups.className = "partyLaunchGroups";
     const ready = document.createElement("section");
-    createText(ready, "strong", `Ready · ${readyMembers.length}`);
-    createText(ready, "span", readyMembers.map((member) => member.name).join(", ") || "Nobody is ready");
+    ready.className = "is-launchable";
+    createText(ready, "strong", `Launchable · ${readyMembers.length}`);
+    createText(ready, "span", readyMembers.map((member) => member.name).join(", ") || "Nobody can launch yet");
+    const unlinked = document.createElement("section");
+    unlinked.className = "needs-companion";
+    createText(unlinked, "strong", `Needs companion · ${missingCompanion.length}`);
+    createText(unlinked, "span", missingCompanion.map((member) => member.name).join(", ") || "No missing links");
     const waiting = document.createElement("section");
-    createText(waiting, "strong", `Not launchable · ${waitingMembers.length}`);
-    createText(waiting, "span", waitingMembers.map((member) => member.name).join(", ") || "Everyone is ready");
-    groups.append(ready, waiting);
+    createText(waiting, "strong", `Not ready · ${notReadyMembers.length}`);
+    createText(waiting, "span", notReadyMembers.map((member) => member.name).join(", ") || "Everyone marked Ready");
+    groups.append(ready, unlinked, waiting);
     dialog.append(groups);
 
     const choices = document.createElement("div");
     choices.className = "partyLaunchChoices";
     const allChoice = document.createElement("label");
-    allChoice.innerHTML = `<input type="radio" name="partyAttendance" value="all" checked><span><strong>Wait for everyone</strong><small>Keep the party together for this round.</small></span>`;
+    allChoice.innerHTML = `<input type="radio" name="partyAttendance" value="all" checked><span><strong>Launch everyone together</strong><small>Available when every member is Ready and linked.</small></span>`;
     const readyChoice = document.createElement("label");
-    readyChoice.innerHTML = `<input type="radio" name="partyAttendance" value="ready"><span><strong>Launch ready members</strong><small>Notify the members who remain in their current game.</small></span>`;
+    readyChoice.innerHTML = `<input type="radio" name="partyAttendance" value="ready"><span><strong>Launch ready members</strong><small>Launch only Ready + Companion members; notify everyone left behind.</small></span>`;
     choices.append(allChoice, readyChoice);
     dialog.append(choices);
 
@@ -716,8 +745,15 @@
       const attendance = dialog.querySelector("input[name='partyAttendance']:checked")?.value || "all";
       const waitingForAll = attendance === "all" && waitingMembers.length > 0;
       launch.disabled = waitingForAll || !readyMembers.length || telemetry.tone === "blocked";
+      launch.textContent = !readyMembers.length
+        ? "Waiting for players"
+        : attendance === "all"
+          ? `Launch ${room.members.length} player${room.members.length === 1 ? "" : "s"}`
+          : `Launch ${readyMembers.length} ready player${readyMembers.length === 1 ? "" : "s"}`;
       warning.textContent = waitingForAll
-        ? "Wait for everyone cannot launch until every member is Ready. Choose Launch ready members to override."
+        ? missingCompanion.length
+          ? `${missingCompanion.length} Ready member${missingCompanion.length === 1 ? " needs" : "s need"} the companion. ${notReadyMembers.length ? `${notReadyMembers.length} still not Ready. ` : ""}Choose Launch ready members to leave them behind.`
+          : `${notReadyMembers.length} member${notReadyMembers.length === 1 ? " is" : "s are"} not Ready. Choose Launch ready members to leave them behind.`
         : attendance === "ready" && waitingMembers.length
           ? `${waitingMembers.length} member${waitingMembers.length === 1 ? "" : "s"} will receive a PARTY MOVED notification.`
           : telemetry.tone === "blocked" ? "This lobby does not have a safe join window." : "Everyone can launch together.";
@@ -922,6 +958,16 @@
     if (!send("companion.ticket.create")) {
       pendingCompanionWindow?.close();
       pendingCompanionWindow = null;
+    }
+  });
+  el.readyToggle.addEventListener("click", () => {
+    const current = me();
+    if (!current || !["watching", "finished", "failed", "ready"].includes(current.phase)) return;
+    const next = current.phase === "ready" ? "watching" : "ready";
+    if (send("member.state", { state: next })) {
+      showToast(next === "ready" ? "Marked Ready" : "Marked not ready", next === "ready"
+        ? (current.companionConnected ? "You can be included in the next launch." : "Connect the companion before the party launches.")
+        : "You will not be included until you mark Ready again.", next === "ready" ? "success" : "info");
     }
   });
 

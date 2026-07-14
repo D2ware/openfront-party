@@ -2226,9 +2226,39 @@ body.card-view .partyToggle { display: inline-flex; }
 }
 
 .partyMemberCard strong,
-.partyMemberCard div > span { display: block; }
+.partyMemberIdentity > span { display: block; }
 .partyMemberCard strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.partyMemberCard div > span { margin-top: 2px; color: var(--muted); font-size: 10px; }
+.partyMemberIdentity > span { margin-top: 2px; color: var(--muted); font-size: 10px; }
+
+.partyMemberBadges {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+  min-width: 0;
+}
+
+.partyMemberLaunchState {
+  padding: 3px 6px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 999px;
+  color: var(--faint);
+  background: rgba(148, 163, 184, 0.06);
+  font: 800 8px var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.partyMemberLaunchState.is-launchable {
+  border-color: rgba(74, 222, 128, 0.30);
+  color: #a9f6c5;
+  background: rgba(20, 83, 45, 0.34);
+}
+
+.partyMemberLaunchState.needs-companion {
+  border-color: rgba(251, 191, 36, 0.28);
+  color: #ffe1a0;
+  background: rgba(91, 63, 10, 0.30);
+}
 
 .partyMemberStateDot {
   width: 8px;
@@ -2437,16 +2467,50 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
 .partyCardJoin:hover { background: rgba(22, 101, 52, 0.88); }
 .partyCardJoin:disabled { cursor: default; opacity: 0.7; }
 
+.partyLaunchPrep {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.8fr) minmax(430px, 1.2fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.partyReadyLine,
 .partyCompanionLine {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-top: 12px;
   padding: 11px 12px;
   border: 1px solid rgba(98, 176, 255, 0.24);
   border-radius: var(--r-md);
   background: rgba(13, 24, 39, 0.72);
 }
+
+.partyReadyLine {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: linear-gradient(105deg, rgba(16, 29, 45, 0.94), rgba(11, 23, 37, 0.74));
+}
+
+.partyReadyLine.is-ready { border-color: rgba(251, 191, 36, 0.42); }
+.partyReadyLine.is-launchable { border-color: rgba(74, 222, 128, 0.48); background: linear-gradient(105deg, rgba(16, 54, 40, 0.78), rgba(11, 28, 34, 0.76)); }
+
+.partyReadyDot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(148, 163, 184, 0.36);
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.partyReadyLine.is-ready .partyReadyDot { border-color: rgba(251, 191, 36, 0.44); background: var(--warn); box-shadow: 0 0 10px rgba(251, 191, 36, 0.28); }
+.partyReadyLine.is-launchable .partyReadyDot { border-color: rgba(74, 222, 128, 0.5); background: var(--ok); box-shadow: 0 0 12px rgba(74, 222, 128, 0.4); }
+.partyReadyLine > div { min-width: 0; margin-right: auto; }
+.partyReadyLine strong,
+.partyReadyLine > div span { display: block; }
+.partyReadyLine strong { color: var(--text); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+.partyReadyLine > div span { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.partyReadyLine button { width: auto; min-width: 112px; border-color: rgba(74, 222, 128, 0.44); color: #d8ffe7; background: rgba(20, 83, 45, 0.56); }
+.partyReadyLine.is-ready button { border-color: rgba(248, 113, 113, 0.30); color: #ffc4c8; background: rgba(91, 28, 35, 0.34); }
 
 .partyCompanionLine > div { min-width: 0; margin-right: auto; }
 .partyCompanionLine strong,
@@ -2472,11 +2536,13 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
 .partyLaunchDialog::backdrop { background: rgba(3, 9, 17, 0.82); backdrop-filter: blur(5px); }
 .partyLaunchDialog h2 { margin: 0; font: 800 18px var(--font-sans); text-transform: uppercase; letter-spacing: 0.04em; }
 .partyLaunchLobby { margin: 5px 0 15px; color: var(--muted); font: 600 11px var(--font-mono); }
-.partyLaunchGroups { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.partyLaunchGroups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .partyLaunchGroups section { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: rgba(8, 16, 27, 0.58); }
 .partyLaunchGroups strong,
 .partyLaunchGroups span { display: block; }
 .partyLaunchGroups strong { color: var(--accent-strong); font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; }
+.partyLaunchGroups .is-launchable strong { color: #82f3aa; }
+.partyLaunchGroups .needs-companion strong { color: #ffd277; }
 .partyLaunchGroups span { margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .partyLaunchChoices { display: grid; gap: 8px; margin-top: 12px; }
 .partyLaunchChoices label { display: flex; align-items: flex-start; gap: 9px; padding: 10px; border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer; }
@@ -2490,6 +2556,7 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
 .partyLaunchActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .partyLaunchActions button { width: auto; min-width: 120px; }
 .partyLaunchActions .primary { border-color: rgba(74, 222, 128, 0.58); color: #d8ffe7; background: rgba(20, 83, 45, 0.72); }
+.partyLaunchActions .primary:disabled { cursor: not-allowed; border-color: rgba(148, 163, 184, 0.20); color: var(--faint); background: rgba(30, 41, 59, 0.55); opacity: 1; }
 
 .partyVoteBadge {
   position: absolute;
@@ -2589,7 +2656,10 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
   .partyCodeLine { flex-wrap: wrap; }
   .partyLiveCount { margin-left: 0; }
   .partyCodeLine #partyLeave { margin-left: auto; }
+  .partyLaunchPrep { grid-template-columns: 1fr; }
+  .partyReadyLine,
   .partyCompanionLine { align-items: stretch; flex-direction: column; }
+  .partyReadyLine button { width: 100%; }
   .partyCompanionActions { align-items: stretch; flex-direction: column; }
   .partyCompanionActions a,
   .partyCompanionActions button { width: 100%; }

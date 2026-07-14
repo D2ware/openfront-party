@@ -135,6 +135,40 @@ async function waitForCompanionEvent(origin, linked, type, cursor, revision, tim
   throw new Error(`Timed out waiting for companion event ${type}.`);
 }
 
+test("party members can report Ready from the viewer connection", async (t) => {
+  const relay = await startRelay();
+  const leader = new TestClient(relay.wsUrl);
+  const member = new TestClient(relay.wsUrl);
+  t.after(() => {
+    leader.close();
+    member.close();
+    relay.child.kill();
+  });
+
+  await Promise.all([leader.open(), member.open()]);
+  const [, memberWelcome] = await Promise.all([
+    leader.take((message) => message.type === "session.welcome"),
+    member.take((message) => message.type === "session.welcome"),
+  ]);
+
+  leader.send("group.create", { name: "Leader", decisionMode: "dictator", isPublic: true });
+  const created = await leader.take((message) => message.type === "group.snapshot" && message.room.members.length === 1);
+  member.send("group.join", { name: "Member", code: created.room.code });
+  await leader.take((message) => message.type === "group.snapshot" && message.room.members.length === 2);
+
+  member.send("member.state", { state: "ready" });
+  const readySnapshot = await member.take((message) => message.type === "group.snapshot" && message.room.members.some((item) => item.id === memberWelcome.clientId && item.phase === "ready"));
+  const readyMember = readySnapshot.room.members.find((item) => item.id === memberWelcome.clientId);
+  assert.equal(readyMember.state, "ready");
+  assert.equal(readyMember.phase, "ready");
+
+  member.send("member.state", { state: "watching" });
+  const watchingSnapshot = await member.take((message) => message.type === "group.snapshot" && message.room.members.some((item) => item.id === memberWelcome.clientId && item.phase === "watching"));
+  const watchingMember = watchingSnapshot.room.members.find((item) => item.id === memberWelcome.clientId);
+  assert.equal(watchingMember.state, "watching");
+  assert.equal(watchingMember.phase, "watching");
+});
+
 test("connected companions launch into an observed lobby and split members receive a persistent move event", async (t) => {
   const relay = await startRelay();
   const leader = new TestClient(relay.wsUrl);

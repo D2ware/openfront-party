@@ -16,9 +16,14 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   const output = path.join(root, "_site");
   const viewerHtml = fs.readFileSync(path.join(output, "viewer", "index.html"), "utf8");
   const config = fs.readFileSync(path.join(output, "viewer", "config.js"), "utf8");
+  const partyClient = fs.readFileSync(path.join(output, "viewer", "party.js"), "utf8");
   const rootHtml = fs.readFileSync(path.join(output, "index.html"), "utf8");
 
   assert.match(config, /https:\/\/relay\.example\.com/);
+  assert.match(viewerHtml, /id="partyReadyToggle"/);
+  assert.match(viewerHtml, /id="partyReadyStatus"/);
+  assert.match(partyClient, /send\("member\.state", \{ state: next \}\)/);
+  assert.match(partyClient, /Needs companion/);
   assert.match(rootHtml, /\.\/viewer\//);
   assert.doesNotMatch(viewerHtml, /(?:href|src)="\//);
   assert.equal(fs.existsSync(path.join(output, "viewer", ".git")), false);
