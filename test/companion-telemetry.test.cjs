@@ -98,9 +98,9 @@ test("companion records confirmed local match telemetry from OpenFront messages"
   updates[23].push({ type: 23, donationType: "gold", senderId: 7, recipientId: 8, amount: 500000n });
   worker.dispatchEvent(messageEvent({ type: "game_update_batch", gameUpdates: [{ tick: 10, updates }] }));
 
-  const winUpdates = Array.from({ length: 25 }, () => []);
-  winUpdates[10].push({
-    type: 10,
+  const winUpdates = Array.from({ length: 13 }, () => []);
+  winUpdates[12].push({
+    type: 12,
     winner: ["player", "CLIENT01"],
     allPlayersStats: {
       CLIENT01: {

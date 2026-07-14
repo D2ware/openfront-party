@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenFront Party Companion
 // @namespace    openfront-party-coordinator
-// @version      0.4.4
+// @version      0.4.5
 // @description  Keeps an opt-in party connected and shares finalized match summaries with the party history.
 // @match        https://openfront.io/*
 // @run-at       document-start
@@ -68,7 +68,7 @@
   const acknowledgedEventIds = new Set();
   const processedCommands = new Set(GM_getValue(PROCESSED_KEY, []));
 
-  const updateTypes = Object.freeze({ unit: 1, player: 2, win: 10 });
+  const updateTypes = Object.freeze({ unit: 1, player: 2 });
   const trackedUnits = new Map([
     ["Port", "portsBuilt"],
     ["Factory", "factoriesBuilt"],
@@ -203,6 +203,12 @@
     telemetry.endedAt = Date.now();
     telemetry.finalized = true;
     saveTelemetry();
+    if (detected.gameId === telemetry.gameId && detected.phase !== "ready") {
+      detected.phase = "finished";
+      collapsed = false;
+      void reportState(true);
+      render();
+    }
     void uploadFinalizedTelemetry();
   }
 
@@ -253,6 +259,12 @@
       );
   }
 
+  function winnerUpdates(groups) {
+    return Object.values(groups || {})
+      .flatMap((updates) => Array.isArray(updates) ? updates : [])
+      .filter((update) => update?.allPlayersStats && Array.isArray(update?.winner));
+  }
+
   function processGameUpdate(update) {
     const groups = update?.updates;
     if (!groups) return;
@@ -269,7 +281,7 @@
       saveTelemetry();
     }
     for (const unit of groups[updateTypes.unit] || []) confirmBuiltUnit(unit);
-    for (const win of groups[updateTypes.win] || []) finalizeTelemetry(win.allPlayersStats, win.winner);
+    for (const win of winnerUpdates(groups)) finalizeTelemetry(win.allPlayersStats, win.winner);
     const tick = Number(update.tick) || 0;
     pendingBuilds = pendingBuilds.filter((item) => tick - item.turn <= 20);
   }
@@ -427,7 +439,7 @@
     const contextKey = route.gameId || "watching";
     let phase;
     if (manualReadyKey === contextKey) phase = "ready";
-    else if (winSurfaceVisible()) phase = "finished";
+    else if (winSurfaceVisible() || (route.gameId && telemetry?.gameId === route.gameId && telemetry.finalized)) phase = "finished";
     else if (document.body?.classList.contains("in-game")) phase = "in_game";
     else if (openFrontLobbyAcknowledged(route)) phase = "in_lobby";
     else if (route.gameId) phase = "opening";
