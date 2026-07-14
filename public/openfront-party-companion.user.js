@@ -187,7 +187,8 @@
   }
 
   function officialGameUrl(event) {
-    return `https://openfront.io/game/${encodeURIComponent(event.gameId)}`;
+    const workerPath = /^w\d+$/.test(String(event.worker || "")) ? String(event.worker) : "w0";
+    return `https://openfront.io/${encodeURIComponent(workerPath)}/game/${encodeURIComponent(event.gameId)}`;
   }
 
   async function handleJoinCommand(event) {

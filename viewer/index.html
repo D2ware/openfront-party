@@ -871,9 +871,10 @@
         return Number.isFinite(n) ? n : null;
       }
       
-      function getJoinUrl(gameID) {
+      function getJoinUrl(gameID, worker = els.worker.value) {
         if (!gameID) return "about:blank";
-        return `https://openfront.io/game/${encodeURIComponent(gameID)}`;
+        const workerPath = /^w\d+$/.test(String(worker || "")) ? String(worker) : "w0";
+        return `https://openfront.io/${encodeURIComponent(workerPath)}/game/${encodeURIComponent(gameID)}`;
       }
 
       async function copyText(text) {

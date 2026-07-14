@@ -142,7 +142,8 @@
   }
 
   function officialGameUrl(lobby) {
-    return `https://openfront.io/game/${encodeURIComponent(lobby?.id || "")}`;
+    const workerPath = /^w\d+$/.test(String(lobby?.server || "")) ? String(lobby.server) : "w0";
+    return `https://openfront.io/${encodeURIComponent(workerPath)}/game/${encodeURIComponent(lobby?.id || "")}`;
   }
 
   function prepareOpenFrontWindow() {
@@ -155,8 +156,10 @@
 
   function navigateOpenFrontWindow(lobby) {
     const url = officialGameUrl(lobby);
-    if (!openFrontWindow || openFrontWindow.closed) openFrontWindow = window.open(url, openFrontWindowName);
-    if (!openFrontWindow) return false;
+    if (!openFrontWindow || openFrontWindow.closed) {
+      openFrontWindow = window.OPENFRONT_PARTY_OPENFRONT_WINDOW || null;
+    }
+    if (!openFrontWindow || openFrontWindow.closed) return false;
     openFrontWindow.location.href = url;
     window.OPENFRONT_PARTY_OPENFRONT_WINDOW = openFrontWindow;
     openFrontWindow.focus();
@@ -172,7 +175,7 @@
     const launchKey = `${after.code}:${launch.roundId}`;
     if (localStorage.getItem(openedLaunchStorageKey) === launchKey) return;
     if (!navigateOpenFrontWindow(launch.lobby)) {
-      showToast("OpenFront tab blocked", "Allow popups, mark yourself not ready, then mark Ready again.", "warning");
+      showToast("Party launched", "Open Party and choose Open lobby to join.", "info");
       return;
     }
     localStorage.setItem(openedLaunchStorageKey, launchKey);
