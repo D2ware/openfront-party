@@ -91,11 +91,11 @@ test("companion records confirmed local match telemetry from OpenFront messages"
       intents: [{ type: "build_unit", unit: "Port", tile: 42, clientID: "CLIENT01" }],
     },
   });
-  const updates = Array.from({ length: 25 }, () => []);
+  const updates = Array.from({ length: 24 }, () => []);
   updates[2].push({ type: 2, id: 7, clientID: "CLIENT01" });
   updates[1].push({ type: 1, id: 99, ownerID: 7, unitType: "Port" });
-  updates[24].push({ type: 24, donationType: "troops", senderId: 7, recipientId: 8, amount: 12500n });
-  updates[24].push({ type: 24, donationType: "gold", senderId: 7, recipientId: 8, amount: 500000n });
+  updates[23].push({ type: 23, donationType: "troops", senderId: 7, recipientId: 8, amount: 12500n });
+  updates[23].push({ type: 23, donationType: "gold", senderId: 7, recipientId: 8, amount: 500000n });
   worker.dispatchEvent(messageEvent({ type: "game_update_batch", gameUpdates: [{ tick: 10, updates }] }));
 
   const winUpdates = Array.from({ length: 25 }, () => []);

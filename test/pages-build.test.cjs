@@ -57,7 +57,7 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.doesNotMatch(viewerHtml, /https:\/\/openfront\.io\/\$\{encodeURIComponent\(workerPath\)\}\/game/);
   assert.match(companion, /openfront\.io\/game\/\$\{encodeURIComponent\(event\.gameId\)\}/);
   assert.doesNotMatch(companion, /openfront\.io\/\$\{encodeURIComponent\(workerPath\)\}\/game/);
-  assert.match(companion, /@version\s+0\.4\.3/);
+  assert.match(companion, /@version\s+0\.4\.4/);
   assert.match(companion, /DonateTroopIconWhite\.svg/);
   assert.match(companion, /GoldCoinIcon\.svg/);
   assert.match(historyClient, /GridIconWhite\.svg/);
@@ -69,7 +69,11 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.doesNotMatch(companion, /modal\.getBoundingClientRect\(\)/);
   assert.match(companion, /\/api\/companion\/matches/);
   assert.match(companion, /@grant\s+unsafeWindow/);
-  assert.match(companion, /donate: 24/);
+  assert.doesNotMatch(companion, /donate:\s*\d+/);
+  assert.match(companion, /function donationUpdates\(groups\)/);
+  assert.match(companion, /update\?\.donationType === "troops"/);
+  assert.match(companion, /update\?\.donationType === "gold"/);
+  assert.match(companion, /Object\.hasOwn\(update, "senderId"\)/);
   assert.match(companion, /message\.type === "winner"/);
   assert.match(companion, /stats\.units\?\.port/);
   assert.match(companion, /stats\.units\?\.fact/);

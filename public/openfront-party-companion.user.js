@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenFront Party Companion
 // @namespace    openfront-party-coordinator
-// @version      0.4.3
+// @version      0.4.4
 // @description  Keeps an opt-in party connected and shares finalized match summaries with the party history.
 // @match        https://openfront.io/*
 // @run-at       document-start
@@ -68,7 +68,7 @@
   const acknowledgedEventIds = new Set();
   const processedCommands = new Set(GM_getValue(PROCESSED_KEY, []));
 
-  const updateTypes = Object.freeze({ unit: 1, player: 2, win: 10, donate: 24 });
+  const updateTypes = Object.freeze({ unit: 1, player: 2, win: 10 });
   const trackedUnits = new Map([
     ["Port", "portsBuilt"],
     ["Factory", "factoriesBuilt"],
@@ -243,6 +243,16 @@
     saveTelemetry();
   }
 
+  function donationUpdates(groups) {
+    return Object.values(groups || {})
+      .flatMap((updates) => Array.isArray(updates) ? updates : [])
+      .filter((update) =>
+        (update?.donationType === "troops" || update?.donationType === "gold") &&
+        Object.hasOwn(update, "senderId") &&
+        Object.hasOwn(update, "amount")
+      );
+  }
+
   function processGameUpdate(update) {
     const groups = update?.updates;
     if (!groups) return;
@@ -252,8 +262,8 @@
         if (player.isLobbyCreator && telemetry?.hostInfiniteGold) telemetry.infiniteGold = true;
       }
     }
-    for (const donation of groups[updateTypes.donate] || []) {
-      if (!telemetry || telemetryPlayerId === null || donation.senderId !== telemetryPlayerId) continue;
+    for (const donation of donationUpdates(groups)) {
+      if (!telemetry || telemetryPlayerId === null || String(donation.senderId) !== String(telemetryPlayerId)) continue;
       const key = donation.donationType === "troops" ? "donatedTroops" : "donatedGold";
       telemetry[key] = addDecimal(telemetry[key], donation.amount);
       saveTelemetry();
