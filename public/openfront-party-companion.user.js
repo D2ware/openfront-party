@@ -187,7 +187,7 @@
   }
 
   function officialGameUrl(event) {
-    return `https://openfront.io/${encodeURIComponent(event.worker)}/game/${encodeURIComponent(event.gameId)}`;
+    return `https://openfront.io/game/${encodeURIComponent(event.gameId)}`;
   }
 
   async function handleJoinCommand(event) {

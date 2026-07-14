@@ -17,6 +17,7 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   const viewerHtml = fs.readFileSync(path.join(output, "viewer", "index.html"), "utf8");
   const config = fs.readFileSync(path.join(output, "viewer", "config.js"), "utf8");
   const partyClient = fs.readFileSync(path.join(output, "viewer", "party.js"), "utf8");
+  const companion = fs.readFileSync(path.join(output, "openfront-party-companion.user.js"), "utf8");
   const rootHtml = fs.readFileSync(path.join(output, "index.html"), "utf8");
 
   assert.match(config, /https:\/\/relay\.example\.com/);
@@ -28,9 +29,11 @@ test("GitHub Pages build is subpath-safe and excludes nested repository metadata
   assert.match(partyClient, /send\("member\.state", \{ state: next \}\)/);
   assert.match(partyClient, /Open the lobby manually/);
   assert.doesNotMatch(partyClient, /Needs companion/);
-  assert.match(partyClient, /openfront\.io\$\{workerPath\}\/game/);
+  assert.match(partyClient, /openfront\.io\/game\/\$\{encodeURIComponent\(lobby\?\.id/);
   assert.match(partyClient, /location\.assign\(officialGameUrl\(launch\.lobby\)\)/);
   assert.match(partyClient, /current\.companionConnected/);
+  assert.match(companion, /openfront\.io\/game\/\$\{encodeURIComponent\(event\.gameId\)\}/);
+  assert.doesNotMatch(companion, /openfront\.io\/\$\{encodeURIComponent\(event\.worker\)\}\/game/);
   assert.match(rootHtml, /\.\/viewer\//);
   assert.doesNotMatch(viewerHtml, /(?:href|src)="\//);
   assert.equal(fs.existsSync(path.join(output, "viewer", ".git")), false);

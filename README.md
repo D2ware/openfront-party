@@ -34,7 +34,7 @@ Choose **Connect OpenFront** after installing it. The viewer creates a one-use, 
 2. The leader's viewer sends a current observation of the selected lobby to the relay.
 3. The relay accepts a launch only while that observation is fresh, the lobby has room and its start is not imminent.
 4. Members marked **Ready** are included in the launch; connected companions also receive `join.command`.
-5. Ready members can open OpenFront's official `/{worker}/game/{gameId}` URL manually, or let the companion navigate there when connected.
+5. Ready members can open OpenFront's official `/game/{gameId}` URL manually, or let the companion navigate there when connected.
 6. OpenFront performs its own lobby existence, capacity, authentication and Turnstile checks.
 7. The companion reports `in_lobby` only after OpenFront has received lobby information with the member's client ID, or `in_game` after `body.in-game` appears.
 

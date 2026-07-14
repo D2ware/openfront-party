@@ -136,8 +136,7 @@
   }
 
   function officialGameUrl(lobby) {
-    const workerPath = lobby?.server ? `/${encodeURIComponent(lobby.server)}` : "";
-    return `https://openfront.io${workerPath}/game/${encodeURIComponent(lobby?.id || "")}`;
+    return `https://openfront.io/game/${encodeURIComponent(lobby?.id || "")}`;
   }
 
   function openUnlinkedLaunch(before, after) {
