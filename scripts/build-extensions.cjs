@@ -187,13 +187,22 @@ function zipDirectory(directory, output) {
 }
 
 function manifest(version, relay, browser) {
+  const icons = {
+    16: "assets/icon-16.png",
+    32: "assets/icon-32.png",
+    48: "assets/icon-48.png",
+    96: "assets/icon-96.png",
+    128: "assets/icon-128.png",
+  };
   const common = {
     manifest_version: 3,
     name: "OpenFront Party Companion",
     version,
     description: "Keeps opt-in OpenFront parties together and records finalized match summaries.",
+    homepage_url: "https://d2ware.github.io/openfront-party/viewer/",
+    icons,
     permissions: ["storage"],
-    host_permissions: ["https://openfront.io/*", `${relay}/*`, "http://localhost:3030/*", "http://127.0.0.1:3030/*"],
+    host_permissions: ["https://openfront.io/*", `${relay}/*`],
     content_scripts: [
       { matches: ["https://openfront.io/*"], js: ["page-bridge.js"], run_at: "document_start", all_frames: false, world: "MAIN" },
       { matches: ["https://openfront.io/*"], js: ["content.js"], run_at: "document_start", all_frames: false, world: "ISOLATED" },
@@ -225,6 +234,7 @@ function buildExtensions(relayInput) {
   const content = extensionContent(userscript);
   const background = fs.readFileSync(path.join(sourceDir, "background.js"), "utf8").replace('"__RELAY_ORIGIN__"', JSON.stringify(relay));
   const bridge = fs.readFileSync(path.join(sourceDir, "page-bridge.js"));
+  const assets = path.join(sourceDir, "assets");
   for (const browser of ["chrome", "firefox"]) {
     const output = path.join(outputRoot, browser);
     fs.mkdirSync(output, { recursive: true });
@@ -232,6 +242,7 @@ function buildExtensions(relayInput) {
     fs.writeFileSync(path.join(output, "content.js"), content);
     fs.writeFileSync(path.join(output, "background.js"), background);
     fs.writeFileSync(path.join(output, "page-bridge.js"), bridge);
+    fs.cpSync(assets, path.join(output, "assets"), { recursive: true });
   }
   const chromePackage = path.join(outputRoot, `openfront-party-chrome-${version}.zip`);
   const firefoxPackage = path.join(outputRoot, `openfront-party-firefox-${version}.xpi`);
@@ -239,9 +250,37 @@ function buildExtensions(relayInput) {
   zipDirectory(path.join(outputRoot, "firefox"), firefoxPackage);
   fs.copyFileSync(chromePackage, path.join(outputRoot, "openfront-party-chrome.zip"));
   fs.copyFileSync(firefoxPackage, path.join(outputRoot, "openfront-party-firefox.xpi"));
+
+  const firefoxSourceDir = path.join(outputRoot, "firefox-source");
+  const sourceFiles = [
+    ".gitignore",
+    "README.md",
+    "package.json",
+    "package-lock.json",
+    "extension/background.js",
+    "extension/page-bridge.js",
+    "extension/version.json",
+    "extension/SOURCE_BUILD.md",
+    "extension/AMO_REVIEW.md",
+    "extension/AMO_LISTING.md",
+    "extension/assets",
+    "public/openfront-party-companion.user.js",
+    "scripts/build-extensions.cjs",
+  ];
+  for (const relative of sourceFiles) {
+    const from = path.join(root, relative);
+    const to = path.join(firefoxSourceDir, relative);
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    if (fs.statSync(from).isDirectory()) fs.cpSync(from, to, { recursive: true });
+    else fs.copyFileSync(from, to);
+  }
+  fs.copyFileSync(path.join(sourceDir, "SOURCE_BUILD.md"), path.join(firefoxSourceDir, "SOURCE_BUILD.md"));
+  const firefoxSourcePackage = path.join(outputRoot, `openfront-party-firefox-source-${version}.zip`);
+  zipDirectory(firefoxSourceDir, firefoxSourcePackage);
   console.log(`Chrome extension: ${chromePackage}`);
   console.log(`Firefox extension: ${firefoxPackage}`);
-  return { version, relay, chromePackage, firefoxPackage };
+  console.log(`Firefox review source: ${firefoxSourcePackage}`);
+  return { version, relay, chromePackage, firefoxPackage, firefoxSourcePackage };
 }
 
 if (require.main === module) buildExtensions(process.argv[2]);

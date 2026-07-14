@@ -2641,6 +2641,8 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
 .partyCompanionLine span { display: block; }
 .partyCompanionLine strong { color: var(--text); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
 .partyCompanionLine span { margin-top: 3px; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.partyCompanionLine .partyPrivacyLink { display: inline-block; margin-top: 5px; color: #70bfff; font: 700 9px var(--font-mono); text-decoration: none; }
+.partyCompanionLine .partyPrivacyLink:hover { text-decoration: underline; }
 .partyCompanionActions { display: flex; align-items: center; gap: 7px; }
 .partyCompanionActions a,
 .partyCompanionActions button { width: auto; min-width: 130px; padding: 9px 11px; border: 1px solid var(--border2); border-radius: var(--r-sm); color: var(--text); background: var(--surface2); font: 800 10px var(--font-sans); text-align: center; text-decoration: none; }
@@ -2662,6 +2664,21 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
 
 .partyLaunchDialog::backdrop { background: rgba(3, 9, 17, 0.82); backdrop-filter: blur(5px); }
 .partyLaunchDialog h2 { margin: 0; font: 800 18px var(--font-sans); text-transform: uppercase; letter-spacing: 0.04em; }
+.partyConsentDialog { width: min(620px, calc(100% - 28px)); }
+.partyConsentSignal { display: flex; align-items: center; width: 132px; margin-bottom: 15px; }
+.partyConsentSignal span { position: relative; width: 12px; height: 12px; border: 3px solid #0d1a2b; border-radius: 50%; background: #69c4ff; box-shadow: 0 0 0 1px #69c4ff; }
+.partyConsentSignal span:nth-child(2) { margin-left: 48px; background: #46e58a; box-shadow: 0 0 0 1px #46e58a; }
+.partyConsentSignal span:nth-child(3) { margin-left: 48px; background: #f7c65b; box-shadow: 0 0 0 1px #f7c65b; }
+.partyConsentSignal span:not(:last-child)::after { position: absolute; top: 3px; left: 10px; width: 51px; height: 2px; background: linear-gradient(90deg, currentColor, #46e58a); content: ""; opacity: 0.7; }
+.partyConsentLead { margin: 7px 0 14px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.partyConsentData { display: grid; gap: 1px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--border); }
+.partyConsentData div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 12px; padding: 10px 12px; background: rgba(8, 16, 27, 0.88); }
+.partyConsentData strong { color: var(--text); font-size: 10px; }
+.partyConsentData span { color: var(--muted); font-size: 10px; line-height: 1.45; }
+.partyConsentCheck { display: flex; gap: 10px; margin-top: 13px; padding: 12px; border: 1px solid rgba(70, 229, 138, 0.28); border-radius: var(--r-sm); background: rgba(18, 57, 44, 0.28); color: #dcecff; font-size: 10px; line-height: 1.5; cursor: pointer; }
+.partyConsentCheck input { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; accent-color: #46e58a; }
+.partyConsentPolicy { margin: 9px 0 0; color: var(--muted); font-size: 9px; }
+.partyConsentPolicy a { color: #70bfff; }
 .partyLaunchLobby { margin: 5px 0 15px; color: var(--muted); font: 600 11px var(--font-mono); }
 .partyLaunchGroups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .partyLaunchGroups section { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: rgba(8, 16, 27, 0.58); }
@@ -2789,6 +2806,7 @@ body.party-selecting .gameCard:hover { border-color: var(--accent-strong); box-s
   .partyLaunchNotice button,
   .partyReadyLine button { width: 100%; }
   .partyCompanionActions { align-items: stretch; flex-direction: column; }
+  .partyConsentData div { grid-template-columns: 1fr; gap: 3px; }
   .partyCompanionActions a,
   .partyCompanionActions button { width: 100%; }
   .partyLaunchGroups { grid-template-columns: 1fr; }

@@ -17,13 +17,15 @@ For automatic launches and match reports, build and install the browser extensio
 npm run build:extensions
 ```
 
-The build creates separate Chromium and Firefox packages in `dist/`. The former Tampermonkey userscript remains available temporarily for migration, but the WebExtension is the supported companion.
+The build creates separate Chromium and Firefox packages in `dist/`. It also creates `openfront-party-firefox-source-<version>.zip`, the human-readable source archive for AMO review. The former Tampermonkey userscript remains available temporarily for migration, but the WebExtension is the supported companion.
 
 The relay binds to `127.0.0.1` by default. This keeps port 3030 off other network interfaces and works with an outbound Cloudflare Tunnel. Set `HOST` explicitly only when another local binding is required.
 
 Match History and companion metric icons are from [OpenFrontIO](https://github.com/openfrontio/OpenFrontIO/tree/main/resources/images) and are used under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 
 Choose **Link OpenFront** after installing it. The viewer creates a one-use, 60-second handoff ticket and opens the official OpenFront page. The extension claims the ticket and keeps that party member present while the viewer tab is closed.
+
+Before the handoff, the viewer shows an explicit data disclosure and requires affirmative consent. The public privacy policy is available at `/viewer/privacy.html`. Linking is optional; the lobby board continues to work without the extension.
 
 ### Install a development build
 
@@ -69,6 +71,7 @@ The generated `_site` directory contains:
 - `/viewer/` — the lobby viewer configured for the relay;
 - `/extensions/openfront-party-chrome.zip` — the Chromium development package;
 - `/extensions/openfront-party-firefox.xpi` — the unsigned Firefox development package;
+- `/extensions/openfront-party-firefox-source.zip` — the matching source package for Mozilla review;
 - `/openfront-party-companion.user.js` — the temporary migration userscript;
 - `/index.html` — a relative redirect that also works under `username.github.io/repository/`.
 

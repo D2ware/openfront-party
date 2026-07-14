@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Privacy policy · OpenFront Party Companion</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #dcecff; background: #07111e; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: radial-gradient(circle at 78% 8%, rgba(39,99,142,.2), transparent 29rem), #07111e; }
+      main { width: min(820px, calc(100% - 32px)); margin: 0 auto; padding: 54px 0 80px; }
+      header { position: relative; padding: 28px; overflow: hidden; border: 1px solid #294b70; border-radius: 18px; background: #0d1b2d; }
+      header::after { position: absolute; right: -25px; bottom: -55px; width: 190px; height: 190px; border: 18px solid rgba(105,196,255,.12); border-radius: 50%; content: ""; }
+      .eyebrow { color: #69c4ff; font: 700 11px ui-monospace, monospace; letter-spacing: .13em; text-transform: uppercase; }
+      h1 { max-width: 620px; margin: 10px 0 8px; font-size: clamp(30px, 6vw, 54px); line-height: .98; letter-spacing: -.04em; }
+      header p { max-width: 610px; margin: 0; color: #9fb2c9; line-height: 1.6; }
+      .route { display: flex; align-items: center; gap: 8px; margin-top: 22px; color: #8ca3bd; font: 700 10px ui-monospace, monospace; text-transform: uppercase; }
+      .route i { width: 9px; height: 9px; border-radius: 50%; background: #46e58a; box-shadow: 0 0 12px rgba(70,229,138,.6); }
+      .route b { width: 44px; height: 1px; background: linear-gradient(90deg, #46e58a, #69c4ff); }
+      article { display: grid; gap: 1px; margin-top: 22px; overflow: hidden; border: 1px solid #223953; border-radius: 14px; background: #223953; }
+      section { padding: 22px 24px; background: #0a1625; }
+      h2 { margin: 0 0 8px; color: #f2f7ff; font-size: 17px; }
+      p, li { color: #aabbd0; font-size: 14px; line-height: 1.65; }
+      p { margin: 7px 0; }
+      ul { margin: 8px 0 0; padding-left: 20px; }
+      a { color: #69c4ff; }
+      footer { margin-top: 18px; color: #7188a2; font: 11px ui-monospace, monospace; }
+      @media (max-width: 540px) { main { padding-top: 20px; } header, section { padding: 20px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <span class="eyebrow">OpenFront Party Companion</span>
+        <h1>Your match data stays on the party route.</h1>
+        <p>This policy explains the limited information processed when you explicitly link the companion to an OpenFront party.</p>
+        <div class="route"><i></i><b></b><span>Linked by you</span><b></b><span>Unlink any time</span></div>
+      </header>
+      <article>
+        <section><h2>Who operates the service</h2><p>OpenFront Party Companion and its party relay are operated by Nonekode. Privacy and deletion requests can be sent to <a href="mailto:nijisafari@gmail.com">nijisafari@gmail.com</a>.</p></section>
+        <section><h2>Information we process</h2><ul><li>Your party callsign, random member identifier, random companion credential, party membership and Ready/game state.</li><li>Selected lobby identifiers and the navigation state needed to keep the party together.</li><li>A finalized match summary: game and map identifiers, result, territory, attacks, donated troops and gold, buildings, nuclear weapons and generated gold.</li><li>Standard connection metadata, such as IP address and request time, may be processed temporarily by hosting and security infrastructure.</li></ul></section>
+        <section><h2>Information we do not collect</h2><p>The companion does not read or transmit your OpenFront password, cookies, account or play tokens, Turnstile responses, chat, complete browsing history, or raw WebSocket and game-worker streams.</p></section>
+        <section><h2>Why and when data is used</h2><p>The random credential and current state operate party launches and persistence. Finalized summaries produce the Match history requested by party members. Processing starts only after you choose <strong>Agree and link OpenFront</strong>. It stops when you unlink, leave the party or remove the extension.</p></section>
+        <section><h2>Storage and retention</h2><p>The extension stores its credential, settings and up to 20 summaries locally in your browser. The relay stores at most the latest 200 party match records; older records are displaced by newer reports. Temporary party state is removed after the party becomes inactive. The service does not sell data or use it for advertising.</p></section>
+        <section><h2>Sharing and security</h2><p>Linked data is sent over HTTPS only to <code>moss.nonekode.fi</code>. Public Match history can display party callsigns and finalized match statistics. Random bearer credentials are stored as hashes on the relay. Data is not shared with advertisers or data brokers.</p></section>
+        <section><h2>Your choices</h2><p>Linking is optional. Use <strong>Unlink</strong> in the companion panel to stop the connection, remove the extension to erase its local storage, or contact us to request deletion of a server-side match report. You may continue using the lobby board without linking the companion.</p></section>
+        <section><h2>Changes</h2><p>Material changes to collected data or its purpose will be disclosed before the updated companion begins that processing. This policy is effective 14 July 2026.</p></section>
+      </article>
+      <footer><a href="./">Return to OpenFront Party</a> · Effective 14 July 2026</footer>
+    </main>
+  </body>
+</html>

@@ -35,6 +35,7 @@ fs.copyFileSync(
 fs.mkdirSync(path.join(output, "extensions"), { recursive: true });
 fs.copyFileSync(extensions.chromePackage, path.join(output, "extensions", "openfront-party-chrome.zip"));
 fs.copyFileSync(extensions.firefoxPackage, path.join(output, "extensions", "openfront-party-firefox.xpi"));
+fs.copyFileSync(extensions.firefoxSourcePackage, path.join(output, "extensions", "openfront-party-firefox-source.zip"));
 
 fs.writeFileSync(path.join(output, ".nojekyll"), "");
 fs.writeFileSync(

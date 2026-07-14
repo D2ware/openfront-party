@@ -34,6 +34,10 @@
     installChrome: byId("partyInstallChrome"),
     installFirefox: byId("partyInstallFirefox"),
     connectOpenFront: byId("partyConnectOpenFront"),
+    companionConsent: byId("partyCompanionConsent"),
+    companionConsentCheck: byId("partyCompanionConsentCheck"),
+    companionConsentCancel: byId("partyCompanionConsentCancel"),
+    companionConsentConfirm: byId("partyCompanionConsentConfirm"),
     readyLine: byId("partyReadyLine"),
     readyStatus: byId("partyReadyStatus"),
     readyToggle: byId("partyReadyToggle"),
@@ -1021,15 +1025,28 @@
     if (!document.body.classList.contains("filters-open")) filters?.click();
     filters?.focus();
   });
-  el.connectOpenFront.addEventListener("click", () => {
+  function startCompanionLink() {
     if (!room) return;
+    el.companionConsent.close();
     pendingCompanionWindow = window.open("about:blank", "_blank");
     if (pendingCompanionWindow) pendingCompanionWindow.document.title = "Connecting OpenFront companion...";
     if (!send("companion.ticket.create")) {
       pendingCompanionWindow?.close();
       pendingCompanionWindow = null;
     }
+  }
+
+  el.connectOpenFront.addEventListener("click", () => {
+    if (!room) return;
+    el.companionConsentCheck.checked = false;
+    el.companionConsentConfirm.disabled = true;
+    el.companionConsent.showModal();
   });
+  el.companionConsentCheck.addEventListener("change", () => {
+    el.companionConsentConfirm.disabled = !el.companionConsentCheck.checked;
+  });
+  el.companionConsentCancel.addEventListener("click", () => el.companionConsent.close());
+  el.companionConsentConfirm.addEventListener("click", startCompanionLink);
   el.readyToggle.addEventListener("click", () => {
     const current = me();
     if (!current || !["watching", "finished", "failed", "ready"].includes(current.phase)) return;
