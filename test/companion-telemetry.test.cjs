@@ -15,8 +15,9 @@ function messageEvent(data) {
   return event;
 }
 
-test("companion records confirmed local match telemetry from OpenFront messages", () => {
+test("companion records and uploads match telemetry without a party", async () => {
   const values = new Map();
+  const requests = [];
 
   class MockWebSocket extends EventTarget {
     constructor(url) {
@@ -72,7 +73,24 @@ test("companion records confirmed local match telemetry from OpenFront messages"
     GM_deleteValue(key) { values.delete(key); },
     GM_getValue(key, fallback) { return values.has(key) ? values.get(key) : fallback; },
     GM_setValue(key, value) { values.set(key, structuredClone(value)); },
-    GM_xmlhttpRequest() {},
+    GM_xmlhttpRequest(options) {
+      requests.push(options);
+      setTimeout(() => {
+        const registration = options.url.endsWith("/api/tracker/register");
+        options.onload({
+          status: registration ? 201 : 200,
+          responseText: JSON.stringify(registration ? {
+            trackerToken: "TRACKER-TOKEN",
+            profile: { id: "PROFILE-1", name: "Northwind" },
+            historyUrl: "https://example.test/history/?player=PROFILE-1",
+          } : {
+            ok: true,
+            profile: { id: "PROFILE-1", name: "Northwind" },
+            historyUrl: "https://example.test/history/?player=PROFILE-1",
+          }),
+        });
+      }, 0);
+    },
   });
 
   vm.runInContext(companionSource, context);
@@ -82,7 +100,14 @@ test("companion records confirmed local match telemetry from OpenFront messages"
   worker.postMessage({
     type: "init",
     clientID: "CLIENT01",
-    gameStartInfo: { gameID: "GAME1234" },
+    gameStartInfo: {
+      gameID: "GAME1234",
+      config: { gameMap: "World", gameMode: "Free For All" },
+      players: [
+        { clientID: "CLIENT01", username: "Northwind" },
+        { clientID: "CLIENT02", username: "Southwind" },
+      ],
+    },
   });
   worker.postMessage({
     type: "turn",
@@ -138,6 +163,17 @@ test("companion records confirmed local match telemetry from OpenFront messages"
       otherTrains: "600",
     },
     finalized: true,
+    outcome: "victory",
+    resultConfidence: "confirmed",
+    resultSource: "win_update",
+    complete: true,
+    playerName: "Northwind",
+    map: "World",
+    mode: "ffa",
+    playerCount: 2,
+    teamCount: 0,
+    finishPosition: 1,
+    worker: "w2",
     finalTiles: 9876,
     attackTroops: "7654321",
     atomBombsLanded: 3,
@@ -149,4 +185,18 @@ test("companion records confirmed local match telemetry from OpenFront messages"
     clientId: "CLIENT01",
     playerId: 7,
   });
+
+  for (let attempt = 0; attempt < 20 && requests.length < 2; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal(requests.length, 2);
+  assert.match(requests[0].url, /\/api\/tracker\/register$/);
+  assert.match(requests[1].url, /\/api\/tracker\/matches$/);
+  assert.equal(requests[1].headers.Authorization, "Bearer TRACKER-TOKEN");
+  const uploaded = JSON.parse(requests[1].data);
+  assert.equal(uploaded.gameId, "GAME1234");
+  assert.equal(uploaded.outcome, "victory");
+  assert.equal(uploaded.mode, "ffa");
+  assert.equal(uploaded.playerCount, 2);
+  assert.equal(requests.some((request) => request.url.includes("/api/companion/")), false);
 });

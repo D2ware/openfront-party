@@ -1,9 +1,11 @@
 // ==UserScript==
-// @name         OpenFront Party Companion
+// @name         OpenFront Match Tracker
 // @namespace    openfront-party-coordinator
-// @version      0.4.5
-// @description  Keeps an opt-in party connected and shares finalized match summaries with the party history.
+// @version      0.5.0
+// @description  Records OpenFront match results and optionally keeps an opt-in party connected.
 // @match        https://openfront.io/*
+// @downloadURL  https://d2ware.github.io/openfront-party/openfront-party-companion.user.js
+// @updateURL    https://d2ware.github.io/openfront-party/openfront-party-companion.user.js
 // @run-at       document-start
 // @noframes
 // @grant        GM_getValue
@@ -24,7 +26,10 @@
   const POSITION_KEY = "openfront-party-companion-position";
   const PROCESSED_KEY = "openfront-party-processed-commands";
   const TELEMETRY_KEY = "openfront-party-match-telemetry-v1";
-  const DEFAULT_RELAY = "http://localhost:3030";
+  const TRACKER_KEY = "openfront-match-tracker-credential-v1";
+  const ACTIVE_MATCH_KEY = "openfront-match-tracker-active-v1";
+  const DEFAULT_RELAY = "https://moss.nonekode.fi";
+  const DEFAULT_HISTORY = "https://d2ware.github.io/openfront-party/history/";
   const OPENFRONT_ICON_BASE = "https://raw.githubusercontent.com/openfrontio/OpenFrontIO/main/resources/images/";
   const telemetryIcons = Object.freeze({
     troops: `${OPENFRONT_ICON_BASE}DonateTroopIconWhite.svg`,
@@ -46,6 +51,8 @@
   };
 
   let credential = GM_getValue(STORAGE_KEY, null);
+  let trackerCredential = GM_getValue(TRACKER_KEY, null);
+  let trackerRegistration = null;
   let cursor = 0;
   let revision = 0;
   let room = null;
@@ -64,6 +71,7 @@
   let uploadingTelemetry = false;
   let pendingBuilds = [];
   const seenUnitIds = new Set();
+  const livePlayers = new Map();
   const persistentEvents = new Map();
   const acknowledgedEventIds = new Set();
   const processedCommands = new Set(GM_getValue(PROCESSED_KEY, []));
@@ -86,6 +94,13 @@
     catch { return decimal(left); }
   }
 
+  function matchMode(value) {
+    const mode = String(value || "").trim().toLowerCase();
+    if (["ffa", "free for all", "free-for-all"].includes(mode)) return "ffa";
+    if (["team", "teams"].includes(mode)) return "team";
+    return mode;
+  }
+
   function telemetryStore() {
     const stored = GM_getValue(TELEMETRY_KEY, {});
     return stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
@@ -93,6 +108,11 @@
 
   function beginTelemetry(gameId) {
     if (!gameId) return;
+    if (telemetry?.gameId !== gameId) {
+      livePlayers.clear();
+      pendingBuilds = [];
+      seenUnitIds.clear();
+    }
     const store = telemetryStore();
     telemetry = store[gameId] || {
       gameId,
@@ -109,9 +129,22 @@
       goldGenerated: null,
       goldBreakdown: null,
       finalized: false,
+      outcome: "unknown",
+      resultConfidence: "unknown",
+      complete: false,
     };
     telemetryClientId = telemetry.clientId || null;
     telemetryPlayerId = Number.isInteger(telemetry.playerId) ? telemetry.playerId : null;
+  }
+
+  function persistTelemetry(match) {
+    if (!match?.gameId) return;
+    if (telemetry?.gameId === match.gameId && telemetry !== match) Object.assign(telemetry, match);
+    const store = telemetryStore();
+    store[match.gameId] = match;
+    const entries = Object.entries(store).sort((a, b) => Number(b[1]?.updatedAt || 0) - Number(a[1]?.updatedAt || 0));
+    GM_setValue(TELEMETRY_KEY, Object.fromEntries(entries.slice(0, 20)));
+    render();
   }
 
   function saveTelemetry() {
@@ -119,11 +152,7 @@
     telemetry.updatedAt = Date.now();
     telemetry.clientId = telemetryClientId;
     telemetry.playerId = telemetryPlayerId;
-    const store = telemetryStore();
-    store[telemetry.gameId] = telemetry;
-    const entries = Object.entries(store).sort((a, b) => Number(b[1]?.updatedAt || 0) - Number(a[1]?.updatedAt || 0));
-    GM_setValue(TELEMETRY_KEY, Object.fromEntries(entries.slice(0, 20)));
-    render();
+    persistTelemetry(telemetry);
   }
 
   function sumDecimals(values) {
@@ -141,10 +170,21 @@
     return {
       gameId: match.gameId,
       finalized: true,
+      playerName: match.playerName,
+      map: match.map,
+      mode: match.mode,
+      worker: match.worker,
+      outcome: match.outcome || (match.won === true ? "victory" : match.won === false ? "defeat" : "unknown"),
+      resultConfidence: match.resultConfidence,
+      resultSource: match.resultSource,
+      complete: match.complete !== false,
+      playerCount: match.playerCount || 0,
+      teamCount: match.teamCount || 0,
+      finishPosition: match.finishPosition || 0,
       startedAt: match.startedAt,
       endedAt: match.endedAt,
       won: match.won,
-      finalTiles: match.finalTiles || 0,
+      finalTiles: match.finalTiles || match.lastTiles || 0,
       attackTroops: match.attackTroops || "0",
       donatedTroops: match.donatedTroops || "0",
       donatedGold: match.donatedGold || "0",
@@ -160,16 +200,35 @@
   }
 
   async function uploadFinalizedTelemetry() {
-    if (!credential || uploadingTelemetry || !telemetry?.finalized || telemetry.uploadedAt) return;
+    if (uploadingTelemetry) return;
+    const candidates = Object.values(telemetryStore())
+      .filter((match) => match?.finalized && JSON.stringify(historyPayload(match)) !== match.uploadedSignature)
+      .sort((a, b) => Number(a.endedAt || a.updatedAt || 0) - Number(b.endedAt || b.updatedAt || 0));
+    if (!candidates.length) return;
     uploadingTelemetry = true;
     try {
-      await api("/api/companion/matches", { method: "POST", data: historyPayload(telemetry), timeout: 10_000 });
-      telemetry.uploadedAt = Date.now();
-      telemetry.uploadError = null;
-      saveTelemetry();
+      await ensureTracker();
+      for (const match of candidates) {
+        const payload = historyPayload(match);
+        const response = await trackerApi("/api/tracker/matches", { method: "POST", data: payload, timeout: 10_000 });
+        if (response.profile) trackerCredential.profile = response.profile;
+        if (response.historyUrl) trackerCredential.historyUrl = response.historyUrl;
+        GM_setValue(TRACKER_KEY, trackerCredential);
+        match.uploadedAt = Date.now();
+        match.uploadedSignature = JSON.stringify(payload);
+        match.uploadError = null;
+        persistTelemetry(match);
+      }
     } catch (error) {
-      telemetry.uploadError = error.message;
-      saveTelemetry();
+      if (error.status === 401) {
+        trackerCredential = null;
+        GM_deleteValue(TRACKER_KEY);
+      }
+      const pending = candidates.find((match) => JSON.stringify(historyPayload(match)) !== match.uploadedSignature);
+      if (pending) {
+        pending.uploadError = error.message;
+        persistTelemetry(pending);
+      }
     } finally {
       uploadingTelemetry = false;
     }
@@ -200,8 +259,14 @@
     telemetry.atomBombGoldSpent = telemetry.infiniteGold ? "0" : (BigInt(telemetry.atomBombsBuilt) * 750_000n).toString();
     telemetry.hydrogenBombGoldSpent = telemetry.infiniteGold ? "0" : (BigInt(telemetry.hydrogenBombsBuilt) * 5_000_000n).toString();
     telemetry.won = winnerIncludesClient(winner);
+    telemetry.outcome = telemetry.won === true ? "victory" : "defeat";
+    telemetry.resultConfidence = "confirmed";
+    telemetry.resultSource = "win_update";
+    telemetry.complete = true;
+    if (telemetry.mode === "ffa" && telemetry.won === true) telemetry.finishPosition = 1;
     telemetry.endedAt = Date.now();
     telemetry.finalized = true;
+    GM_deleteValue(ACTIVE_MATCH_KEY);
     saveTelemetry();
     if (detected.gameId === telemetry.gameId && detected.phase !== "ready") {
       detected.phase = "finished";
@@ -210,6 +275,64 @@
       render();
     }
     void uploadFinalizedTelemetry();
+  }
+
+  function activePlayerCount() {
+    const knownDead = [...livePlayers.values()].filter((player) => player.clientId && player.isAlive === false).length;
+    return Math.max(0, Number(telemetry?.playerCount || 0) - knownDead);
+  }
+
+  function markEliminated() {
+    if (!telemetry || telemetry.complete || telemetry.outcome === "eliminated") return;
+    telemetry.outcome = "eliminated";
+    telemetry.won = false;
+    telemetry.resultConfidence = "confirmed";
+    telemetry.resultSource = "player_eliminated";
+    telemetry.complete = false;
+    telemetry.endedAt = Date.now();
+    telemetry.finalized = true;
+    if (telemetry.mode === "ffa") telemetry.finishPosition = Math.min(telemetry.playerCount || 400, activePlayerCount() + 1);
+    saveTelemetry();
+    collapsed = false;
+    void uploadFinalizedTelemetry();
+  }
+
+  function markRouteExit(gameId) {
+    const store = telemetryStore();
+    const match = store[gameId];
+    if (!match || match.complete || match.outcome === "victory" || match.outcome === "defeat" || match.outcome === "eliminated") return;
+    telemetry = match;
+    telemetryClientId = match.clientId || null;
+    telemetryPlayerId = Number.isInteger(match.playerId) ? match.playerId : null;
+    telemetry.outcome = "likely_defeat";
+    telemetry.won = false;
+    telemetry.resultConfidence = "inferred";
+    telemetry.resultSource = "returned_to_home";
+    telemetry.complete = false;
+    telemetry.endedAt = Date.now();
+    telemetry.finalized = true;
+    saveTelemetry();
+    GM_deleteValue(ACTIVE_MATCH_KEY);
+    void uploadFinalizedTelemetry();
+  }
+
+  function captureGameStart(gameId, clientId, gameStartInfo = {}) {
+    beginTelemetry(gameId);
+    telemetryClientId = clientId || telemetryClientId;
+    const players = Array.isArray(gameStartInfo.players) ? gameStartInfo.players : [];
+    const local = players.find((player) => player.clientID === telemetryClientId);
+    const teams = new Set(players.map((player) => player.teamIndex).filter((value) => Number.isInteger(value)));
+    telemetry.playerName = local?.username || telemetry.playerName || "OpenFront player";
+    telemetry.map = String(gameStartInfo.config?.gameMap || telemetry.map || "");
+    telemetry.mode = matchMode(gameStartInfo.config?.gameMode || telemetry.mode);
+    telemetry.playerCount = players.length || telemetry.playerCount || 0;
+    telemetry.teamCount = teams.size || telemetry.teamCount || 0;
+    telemetry.worker = gameRoute().worker || telemetry.worker || null;
+    telemetry.infiniteGold = Boolean(gameStartInfo.config?.infiniteGold);
+    telemetry.hostInfiniteGold = Boolean(gameStartInfo.config?.hostCheats?.infiniteGold);
+    for (const player of players) livePlayers.set(`client:${player.clientID}`, { clientId: player.clientID, isAlive: true });
+    GM_setValue(ACTIVE_MATCH_KEY, { gameId, startedAt: telemetry.startedAt });
+    saveTelemetry();
   }
 
   function processTurn(turn) {
@@ -224,10 +347,7 @@
     if (!message || typeof message !== "object") return;
     if (message.type === "start") {
       const gameId = message.gameStartInfo?.gameID || gameRoute().gameId;
-      beginTelemetry(gameId);
-      telemetryClientId = message.myClientID || telemetryClientId;
-      telemetry.infiniteGold = Boolean(message.gameStartInfo?.config?.infiniteGold);
-      telemetry.hostInfiniteGold = Boolean(message.gameStartInfo?.config?.hostCheats?.infiniteGold);
+      captureGameStart(gameId, message.myClientID, message.gameStartInfo);
       for (const turn of message.turns || []) processTurn(turn);
       saveTelemetry();
     } else if (message.type === "turn") {
@@ -269,9 +389,24 @@
     const groups = update?.updates;
     if (!groups) return;
     for (const player of groups[updateTypes.player] || []) {
+      const key = `player:${player.id}`;
+      const previous = livePlayers.get(key) || {};
+      const nextPlayer = {
+        ...previous,
+        ...(player.clientID !== undefined ? { clientId: player.clientID } : {}),
+        ...(player.isAlive !== undefined ? { isAlive: player.isAlive } : {}),
+        ...(player.hasSpawned !== undefined ? { hasSpawned: player.hasSpawned } : {}),
+      };
+      livePlayers.set(key, nextPlayer);
       if (player.clientID && player.clientID === telemetryClientId) {
         telemetryPlayerId = player.id;
         if (player.isLobbyCreator && telemetry?.hostInfiniteGold) telemetry.infiniteGold = true;
+      }
+      if (player.id === telemetryPlayerId || player.clientID === telemetryClientId) {
+        if (player.tilesOwned !== undefined) telemetry.lastTiles = Number(player.tilesOwned) || 0;
+        if (player.gold !== undefined) telemetry.lastGold = decimal(player.gold);
+        if (player.troops !== undefined) telemetry.lastTroops = decimal(player.troops);
+        if (nextPlayer.hasSpawned && nextPlayer.isAlive === false) markEliminated();
       }
     }
     for (const donation of donationUpdates(groups)) {
@@ -330,11 +465,7 @@
             try {
               if (message?.type === "init") {
                 const gameId = message.gameStartInfo?.gameID || gameRoute().gameId;
-                beginTelemetry(gameId);
-                telemetryClientId = message.clientID || telemetryClientId;
-                telemetry.infiniteGold = Boolean(message.gameStartInfo?.config?.infiniteGold);
-                telemetry.hostInfiniteGold = Boolean(message.gameStartInfo?.config?.hostCheats?.infiniteGold);
-                saveTelemetry();
+                captureGameStart(gameId, message.clientID, message.gameStartInfo);
               } else if (message?.type === "turn") {
                 processTurn(message.turn);
               }
@@ -393,8 +524,8 @@
           }
           resolve(payload);
         },
-        onerror: () => reject(new Error("Party relay is unreachable.")),
-        ontimeout: () => reject(new Error("Party relay request timed out.")),
+        onerror: () => reject(new Error("OpenFront tracker service is unreachable.")),
+        ontimeout: () => reject(new Error("OpenFront tracker service timed out.")),
       });
     });
   }
@@ -406,6 +537,37 @@
       url: `${credential.relayOrigin}${path}`,
       token: credential.companionToken,
     });
+  }
+
+  function trackerApi(path, options = {}) {
+    if (!trackerCredential?.trackerToken) return Promise.reject(new Error("Tracker registration is missing."));
+    return request({
+      ...options,
+      url: `${safeRelay(trackerCredential.relayOrigin || DEFAULT_RELAY)}${path}`,
+      token: trackerCredential.trackerToken,
+    });
+  }
+
+  async function ensureTracker() {
+    if (trackerCredential?.trackerToken) return trackerCredential;
+    if (trackerRegistration) return trackerRegistration;
+    trackerRegistration = request({
+      method: "POST",
+      url: `${DEFAULT_RELAY}/api/tracker/register`,
+      data: { name: telemetry?.playerName || "OpenFront player" },
+      timeout: 10_000,
+    }).then((response) => {
+      trackerCredential = {
+        relayOrigin: DEFAULT_RELAY,
+        trackerToken: response.trackerToken,
+        profile: response.profile,
+        historyUrl: response.historyUrl,
+      };
+      GM_setValue(TRACKER_KEY, trackerCredential);
+      render();
+      return trackerCredential;
+    }).finally(() => { trackerRegistration = null; });
+    return trackerRegistration;
   }
 
   function currentMember() {
@@ -427,19 +589,15 @@
     return String(modal.currentLobbyId || "") === route.gameId && Boolean(modal.currentClientID);
   }
 
-  function winSurfaceVisible() {
-    if (location.search.includes("replay")) return true;
-    const modal = document.querySelector("win-modal");
-    if (!modal) return false;
-    return modal.isVisible === true;
-  }
-
   function detectPhase() {
+    const previous = detected;
     const route = gameRoute();
+    if (previous.gameId && previous.gameId !== route.gameId && previous.phase === "in_game") markRouteExit(previous.gameId);
+    if (route.gameId && telemetry?.gameId !== route.gameId) beginTelemetry(route.gameId);
     const contextKey = route.gameId || "watching";
     let phase;
     if (manualReadyKey === contextKey) phase = "ready";
-    else if (winSurfaceVisible() || (route.gameId && telemetry?.gameId === route.gameId && telemetry.finalized)) phase = "finished";
+    else if (route.gameId && telemetry?.gameId === route.gameId && telemetry.finalized) phase = "finished";
     else if (document.body?.classList.contains("in-game")) phase = "in_game";
     else if (openFrontLobbyAcknowledged(route)) phase = "in_lobby";
     else if (route.gameId) phase = "opening";
@@ -448,10 +606,17 @@
     const changed = JSON.stringify(next) !== JSON.stringify(detected);
     detected = next;
     if (changed) {
+      if (phase === "in_game" && route.gameId) GM_setValue(ACTIVE_MATCH_KEY, { gameId: route.gameId, startedAt: telemetry?.startedAt || Date.now() });
       if (phase === "finished") collapsed = false;
       reportState();
       render();
     }
+  }
+
+  function reconcileActiveMatch() {
+    const active = GM_getValue(ACTIVE_MATCH_KEY, null);
+    const route = gameRoute();
+    if (active?.gameId && active.gameId !== route.gameId && !route.gameId) markRouteExit(active.gameId);
   }
 
   async function reportState(force = false) {
@@ -688,7 +853,7 @@
     }
     const note = document.createElement("p");
     note.textContent = telemetry.finalized
-      ? (telemetry.uploadedAt ? "Final values shared with Match History and stored locally." : "Final values stored locally; Match History upload is pending.")
+      ? (telemetry.uploadedAt ? "Result shared with your public match history." : "Result stored locally; upload is pending.")
       : telemetryClientId
         ? "Live capture active. Total generated gold is confirmed when the match ends."
         : "Waiting for the OpenFront match stream. Reload this tab if the match was already open when the companion updated.";
@@ -723,19 +888,39 @@
     body.replaceChildren();
     const member = currentMember();
 
-    if (!credential) {
-      const empty = document.createElement("p");
-      empty.className = "ofpc-empty";
-      empty.textContent = error || "Open the party viewer and choose Connect OpenFront.";
-      body.append(empty);
-      return;
-    }
-
     if (error) {
       const problem = document.createElement("div");
       problem.className = "ofpc-error";
       problem.textContent = error;
       body.append(problem);
+    }
+
+    const tracker = document.createElement("section");
+    tracker.className = "ofpc-tracker";
+    const trackerCopy = document.createElement("div");
+    const trackerTitle = document.createElement("strong");
+    trackerTitle.textContent = "MATCH TRACKER";
+    const trackerState = document.createElement("small");
+    trackerState.textContent = trackerCredential?.profile?.id
+      ? `${trackerCredential.profile.name || "OpenFront player"} · ${trackerCredential.profile.id}`
+      : "Registering this browser…";
+    trackerCopy.append(trackerTitle, trackerState);
+    const historyLink = document.createElement("a");
+    historyLink.href = trackerCredential?.historyUrl || DEFAULT_HISTORY;
+    historyLink.target = "_blank";
+    historyLink.rel = "noreferrer";
+    historyLink.textContent = "My results";
+    tracker.append(trackerCopy, historyLink);
+    body.append(tracker);
+
+    renderTelemetry(body);
+
+    if (!credential) {
+      const empty = document.createElement("p");
+      empty.className = "ofpc-empty party-optional";
+      empty.textContent = "Match tracking is active. Link a Party only when you want coordinated launches.";
+      body.append(empty);
+      return;
     }
     for (const event of persistentEvents.values()) renderMovedEvent(body, event);
 
@@ -749,8 +934,6 @@
     currentPhase.textContent = phaseLabels[detected.phase] || detected.phase;
     summary.append(connectionState, memberCount, currentPhase);
     body.append(summary);
-
-    renderTelemetry(body);
 
     if (pendingCommand && detected.phase !== "ready") {
       const pending = document.createElement("div");
@@ -812,9 +995,9 @@
     const status = document.createElement("span");
     status.className = "ofpc-status";
     const heading = document.createElement("strong");
-    heading.textContent = "PARTY";
+    heading.textContent = "OPENFRONT";
     const badge = document.createElement("small");
-    badge.textContent = "COMPANION";
+    badge.textContent = "TRACKER";
     title.append(status, heading, badge);
     const collapse = button("⌄", () => { collapsed = !collapsed; render(); }, "ofpc-collapse");
     header.append(title, collapse);
@@ -872,6 +1055,11 @@
     #openfront-party-companion .ofpc-summary { display:grid; grid-template-columns:1fr auto; gap:3px 8px; padding:8px; border:1px solid rgba(148,163,184,.18); border-radius:8px; }
     #openfront-party-companion .ofpc-summary span { color:#74e9a0; font-weight:700; }
     #openfront-party-companion .ofpc-summary small { grid-column:1/-1; color:#9fb2c9; }
+    #openfront-party-companion .ofpc-tracker { display:flex; align-items:center; gap:8px; padding:8px; border:1px solid rgba(74,222,128,.24); border-radius:8px; background:rgba(8,45,36,.36); }
+    #openfront-party-companion .ofpc-tracker > div { display:grid; gap:2px; min-width:0; margin-right:auto; }
+    #openfront-party-companion .ofpc-tracker strong { color:#74e9a0; font-size:9px; letter-spacing:.1em; }
+    #openfront-party-companion .ofpc-tracker small { overflow:hidden; color:#a7cbbb; font:700 8px ui-monospace,monospace; text-overflow:ellipsis; white-space:nowrap; }
+    #openfront-party-companion .party-optional { color:#9fb2c9; background:rgba(20,31,48,.5); }
     #openfront-party-companion .ofpc-telemetry { display:grid; gap:7px; padding:8px; border:1px solid rgba(98,176,255,.24); border-radius:8px; background:rgba(12,27,44,.72); }
     #openfront-party-companion .ofpc-telemetry > strong { color:#62b0ff; font-size:9px; letter-spacing:.1em; }
     #openfront-party-companion .ofpc-telemetry > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; }
@@ -902,6 +1090,8 @@
 
   const boot = () => {
     installUi();
+    reconcileActiveMatch();
+    void ensureTracker().then(() => uploadFinalizedTelemetry()).catch((error) => render(error.message));
     const connecting = consumeConnectFragment();
     if (credential && !connecting) {
       credential.relayOrigin = safeRelay(credential.relayOrigin);
@@ -912,6 +1102,7 @@
     const observer = new MutationObserver(() => detectPhase());
     observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "style"] });
     setInterval(detectPhase, 1_000);
+    setInterval(() => { if (telemetry?.finalized) void uploadFinalizedTelemetry(); }, 30_000);
   };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });

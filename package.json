@@ -2,13 +2,11 @@
   "name": "openfront-pre-lobby",
   "version": "0.1.0",
   "private": true,
-  "description": "A lightweight, user-controlled group coordinator for choosing OpenFront lobbies.",
+  "description": "A public OpenFront match tracker with an optional party coordinator.",
   "scripts": {
-    "prestart": "npm run build:extensions",
     "start": "node server.cjs",
     "dev": "node --watch server.cjs",
     "test": "node --test",
-    "build:extensions": "node scripts/build-extensions.cjs",
     "build:pages": "node scripts/build-pages.cjs"
   },
   "dependencies": {

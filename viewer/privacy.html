@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="color-scheme" content="dark" />
-    <title>Privacy policy · OpenFront Party Companion</title>
+    <title>Privacy policy · OpenFront Tracker userscript</title>
     <style>
       :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #dcecff; background: #07111e; }
       * { box-sizing: border-box; }
@@ -32,22 +32,22 @@
   <body>
     <main>
       <header>
-        <span class="eyebrow">OpenFront Party Companion</span>
-        <h1>Your match data stays on the party route.</h1>
-        <p>This policy explains the limited information processed when you explicitly link the companion to an OpenFront party.</p>
-        <div class="route"><i></i><b></b><span>Linked by you</span><b></b><span>Unlink any time</span></div>
+        <span class="eyebrow">OpenFront Tracker userscript</span>
+        <h1>A small, public after-action record.</h1>
+        <p>This policy explains the limited information processed after you choose to install the OpenFront userscript.</p>
+        <div class="route"><i></i><b></b><span>Installed by you</span><b></b><span>Remove any time</span></div>
       </header>
       <article>
-        <section><h2>Who operates the service</h2><p>OpenFront Party Companion and its party relay are operated by Nonekode. Privacy and deletion requests can be sent to <a href="mailto:nijisafari@gmail.com">nijisafari@gmail.com</a>.</p></section>
-        <section><h2>Information we process</h2><ul><li>Your party callsign, random member identifier, random companion credential, party membership and Ready/game state.</li><li>Selected lobby identifiers and the navigation state needed to keep the party together.</li><li>A finalized match summary: game and map identifiers, result, territory, attacks, donated troops and gold, buildings, nuclear weapons and generated gold.</li><li>Standard connection metadata, such as IP address and request time, may be processed temporarily by hosting and security infrastructure.</li></ul></section>
+        <section><h2>Who operates the service</h2><p>OpenFront Tracker, the optional Party coordinator and their relay are operated by Nonekode. Privacy and deletion requests can be sent to <a href="mailto:nijisafari@gmail.com">nijisafari@gmail.com</a>.</p></section>
+        <section><h2>Information we process</h2><ul><li>Your OpenFront display name, a random tracker identifier and random tracker credential.</li><li>A match summary: game, map and mode identifiers, player and team counts, result or inferred result, placement when available, territory, attacks, donated troops and gold, buildings, nuclear weapons and generated gold.</li><li>If you link a party: your party callsign, random member identifier, party membership, Ready/game state and selected lobby.</li><li>Standard connection metadata, such as IP address and request time, may be processed temporarily by hosting and security infrastructure.</li></ul></section>
         <section><h2>Information we do not collect</h2><p>The companion does not read or transmit your OpenFront password, cookies, account or play tokens, Turnstile responses, chat, complete browsing history, or raw WebSocket and game-worker streams.</p></section>
-        <section><h2>Why and when data is used</h2><p>The random credential and current state operate party launches and persistence. Finalized summaries produce the Match history requested by party members. Processing starts only after you choose <strong>Agree and link OpenFront</strong>. It stops when you unlink, leave the party or remove the extension.</p></section>
-        <section><h2>Storage and retention</h2><p>The extension stores its credential, settings and up to 20 summaries locally in your browser. The relay stores at most the latest 200 party match records; older records are displaced by newer reports. Temporary party state is removed after the party becomes inactive. The service does not sell data or use it for advertising.</p></section>
-        <section><h2>Sharing and security</h2><p>Linked data is sent over HTTPS only to <code>moss.nonekode.fi</code>. Public Match history can display party callsigns and finalized match statistics. Random bearer credentials are stored as hashes on the relay. Data is not shared with advertisers or data brokers.</p></section>
-        <section><h2>Your choices</h2><p>Linking is optional. Use <strong>Unlink</strong> in the companion panel to stop the connection, remove the extension to erase its local storage, or contact us to request deletion of a server-side match report. You may continue using the lobby board without linking the companion.</p></section>
-        <section><h2>Changes</h2><p>Material changes to collected data or its purpose will be disclosed before the updated companion begins that processing. This policy is effective 14 July 2026.</p></section>
+        <section><h2>Why and when data is used</h2><p>Match summaries create a public player profile and after-action history. Reporting runs for matches played with the userscript installed, whether or not you are in a party. Party data is processed only while you explicitly link a party.</p></section>
+        <section><h2>Storage and retention</h2><p>The userscript stores its random credential, settings and recent summaries locally in your browser. The relay keeps a rolling history of up to 2,000 match records. Temporary party state is removed after the party becomes inactive. The service does not sell data or use it for advertising.</p></section>
+        <section><h2>Sharing and security</h2><p>Data is sent over HTTPS only to <code>moss.nonekode.fi</code>. Public profiles can display player names and match statistics, including whether a result was confirmed by OpenFront or inferred from navigation. Random bearer credentials are stored as hashes on the relay. Data is not shared with advertisers or data brokers.</p></section>
+        <section><h2>Your choices</h2><p>Installation is optional. Remove or disable the userscript to stop future reports, clear its site data to erase the local credential, or contact us to request deletion of server-side reports. The lobby board continues to work without the userscript.</p></section>
+        <section><h2>Changes</h2><p>Material changes to collected data or its purpose will be disclosed before the updated userscript begins that processing. This policy is effective 15 July 2026.</p></section>
       </article>
-      <footer><a href="./">Return to OpenFront Party</a> · Effective 14 July 2026</footer>
+      <footer><a href="./">Return to OpenFront Party</a> · Effective 15 July 2026</footer>
     </main>
   </body>
 </html>

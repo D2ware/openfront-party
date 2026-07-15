@@ -8,6 +8,7 @@ const PORT = Number(process.env.PORT || 3030);
 const HOST = process.env.HOST || "127.0.0.1";
 const PUBLIC_DIR = path.join(__dirname, "public");
 const VIEWER_DIR = path.join(__dirname, "viewer");
+const HISTORY_DIR = path.join(__dirname, "history");
 const EXTENSIONS_DIR = path.join(__dirname, "dist");
 const MAX_MESSAGE_BYTES = 8 * 1024;
 const MAX_HTTP_BODY_BYTES = 16 * 1024;
@@ -21,24 +22,31 @@ const MAX_LOBBY_OBSERVATION_AGE_MS = 10_000;
 const MIN_LOBBY_START_LEAD_MS = 8_000;
 const LONG_POLL_MS = 20_000;
 const MATCH_HISTORY_FILE = process.env.MATCH_HISTORY_FILE || path.join(__dirname, "data", "match-history.json");
-const MAX_MATCH_HISTORY = 200;
+const MATCH_HISTORY_URL = process.env.MATCH_HISTORY_URL || "https://d2ware.github.io/openfront-party/history/";
+const MAX_MATCH_HISTORY = 2_000;
 
 const rooms = new Map();
 const sessions = new Map();
 const companionTickets = new Map();
 const companionTokens = new Map();
+const trackerTokens = new Map();
 
 function loadMatchHistory() {
   try {
     const parsed = JSON.parse(fs.readFileSync(MATCH_HISTORY_FILE, "utf8"));
-    if (parsed?.version === 1 && Array.isArray(parsed.matches)) return parsed;
+    if ((parsed?.version === 1 || parsed?.version === 2) && Array.isArray(parsed.matches)) {
+      return { version: 2, matches: parsed.matches, trackers: Array.isArray(parsed.trackers) ? parsed.trackers : [] };
+    }
   } catch (error) {
     if (error.code !== "ENOENT") console.error("Could not load match history:", error.message);
   }
-  return { version: 1, matches: [] };
+  return { version: 2, matches: [], trackers: [] };
 }
 
 const matchHistory = loadMatchHistory();
+for (const tracker of matchHistory.trackers) {
+  if (tracker?.tokenHash) trackerTokens.set(tracker.tokenHash, tracker);
+}
 let matchHistoryWrite = Promise.resolve();
 
 function persistMatchHistory() {
@@ -120,10 +128,12 @@ function readJson(req) {
 function serveFile(req, res) {
   const requested = req.url === "/" ? "/index.html" : req.url.split("?")[0];
   if (requested === "/viewer") { res.writeHead(302, { Location: "/viewer/" }); res.end(); return; }
+  if (requested === "/history") { res.writeHead(302, { Location: "/history/" }); res.end(); return; }
   const isViewer = requested.startsWith("/viewer/");
+  const isHistory = requested.startsWith("/history/");
   const isExtension = requested.startsWith("/extensions/");
-  const root = isViewer ? VIEWER_DIR : isExtension ? EXTENSIONS_DIR : PUBLIC_DIR;
-  const relativePath = isViewer ? requested.slice("/viewer".length) : isExtension ? requested.slice("/extensions".length) : requested;
+  const root = isViewer ? VIEWER_DIR : isHistory ? HISTORY_DIR : isExtension ? EXTENSIONS_DIR : PUBLIC_DIR;
+  const relativePath = isViewer ? requested.slice("/viewer".length) : isHistory ? requested.slice("/history".length) : isExtension ? requested.slice("/extensions".length) : requested;
   const relative = relativePath === "/" ? "/index.html" : relativePath;
   const file = path.normalize(path.join(root, relative));
   if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
@@ -620,6 +630,13 @@ function bearerMember(req) {
   return companionTokens.get(tokenHash(match[1])) || null;
 }
 
+function bearerTracker(req) {
+  const header = String(req.headers.authorization || "");
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  return trackerTokens.get(tokenHash(match[1])) || null;
+}
+
 function boundedInteger(value, maximum = 1_000_000) {
   const number = Number(value);
   return Number.isSafeInteger(number) && number >= 0 && number <= maximum ? number : 0;
@@ -630,19 +647,41 @@ function decimalMetric(value, digits = 24) {
   return new RegExp(`^\\d{1,${digits}}$`).test(text) ? text.replace(/^0+(?=\d)/, "") : "0";
 }
 
+function matchMode(value) {
+  const mode = cleanText(value, 32).toLowerCase();
+  if (["ffa", "free for all", "free-for-all"].includes(mode)) return "ffa";
+  if (["team", "teams"].includes(mode)) return "team";
+  return mode;
+}
+
 function cleanMatchReport(body) {
   const gameId = cleanText(body.gameId, 64);
-  if (!body.finalized || !gameId) return null;
-  const won = typeof body.won === "boolean" ? body.won : null;
+  const allowedOutcomes = new Set(["victory", "defeat", "eliminated", "likely_defeat", "unknown"]);
+  const requestedOutcome = cleanText(body.outcome, 24);
+  const outcome = allowedOutcomes.has(requestedOutcome)
+    ? requestedOutcome
+    : body.won === true ? "victory" : body.won === false ? "defeat" : "unknown";
+  if ((!body.finalized && outcome === "unknown") || !gameId) return null;
+  const won = outcome === "victory" ? true : new Set(["defeat", "eliminated", "likely_defeat"]).has(outcome) ? false : null;
   const timestamp = (value) => {
     const number = Number(value);
     return Number.isFinite(number) && number >= 1_600_000_000_000 && number <= Date.now() + 300_000 ? Math.trunc(number) : null;
   };
   return {
     gameId,
+    map: cleanText(body.map, 80),
+    mode: matchMode(body.mode),
+    playerName: cleanText(body.playerName, 32),
     startedAt: timestamp(body.startedAt),
     endedAt: timestamp(body.endedAt) || Date.now(),
     won,
+    outcome,
+    resultConfidence: outcome === "likely_defeat" ? "inferred" : cleanText(body.resultConfidence, 16) === "inferred" ? "inferred" : "confirmed",
+    resultSource: cleanText(body.resultSource, 32),
+    complete: body.complete !== false,
+    playerCount: boundedInteger(body.playerCount, 400),
+    teamCount: boundedInteger(body.teamCount, 100),
+    finishPosition: boundedInteger(body.finishPosition, 400),
     finalTiles: boundedInteger(body.finalTiles, 100_000_000),
     attackTroops: decimalMetric(body.attackTroops),
     donatedTroops: decimalMetric(body.donatedTroops),
@@ -667,39 +706,179 @@ function publicMatch(match) {
     startedAt: match.startedAt,
     endedAt: match.endedAt,
     updatedAt: match.updatedAt,
-    players: match.players.map(({ memberId, ...player }) => player),
+    playerCount: match.playerCount || 0,
+    teamCount: match.teamCount || 0,
+    players: match.players.map(({ memberId, identityKey, trackerId, ...player }) => player),
   };
 }
 
-async function recordMatchReport(member, report) {
+async function recordMatchReport(identity, report) {
   const now = Date.now();
-  const launchLobby = member.room?.currentLaunch?.lobby;
+  const launchLobby = identity.launchLobby;
   let match = matchHistory.matches.find((item) => item.gameId === report.gameId);
   if (!match) {
     match = {
       gameId: report.gameId,
-      map: launchLobby?.id === report.gameId ? cleanText(launchLobby.name || launchLobby.map, 80) : "OpenFront match",
-      mode: launchLobby?.id === report.gameId ? cleanText(launchLobby.mode, 80) : "",
-      worker: cleanText(member.worker || launchLobby?.server, 8),
+      map: report.map || (launchLobby?.id === report.gameId ? cleanText(launchLobby.name || launchLobby.map, 80) : "OpenFront match"),
+      mode: report.mode || (launchLobby?.id === report.gameId ? cleanText(launchLobby.mode, 80) : ""),
+      worker: cleanText(identity.worker || launchLobby?.server, 8),
       startedAt: report.startedAt,
       endedAt: report.endedAt,
       updatedAt: now,
+      playerCount: report.playerCount,
+      teamCount: report.teamCount,
       players: [],
     };
     matchHistory.matches.push(match);
   }
+  if ((!match.map || match.map === "OpenFront match") && report.map) match.map = report.map;
+  if (!match.mode && report.mode) match.mode = report.mode;
+  match.playerCount = Math.max(match.playerCount || 0, report.playerCount || 0);
+  match.teamCount = Math.max(match.teamCount || 0, report.teamCount || 0);
   match.startedAt = match.startedAt && report.startedAt ? Math.min(match.startedAt, report.startedAt) : (match.startedAt || report.startedAt);
   match.endedAt = Math.max(match.endedAt || 0, report.endedAt);
   match.updatedAt = now;
-  const player = { memberId: member.id, name: member.name, ...report, reportedAt: now };
+  const player = {
+    identityKey: identity.identityKey,
+    trackerId: identity.trackerId || null,
+    profileId: identity.profileId || null,
+    name: report.playerName || identity.name || "OpenFront player",
+    ...report,
+    reportedAt: now,
+  };
   delete player.gameId;
-  const playerIndex = match.players.findIndex((item) => item.memberId === member.id);
+  delete player.playerName;
+  const playerIndex = match.players.findIndex((item) => (item.identityKey || `party:${item.memberId}`) === identity.identityKey);
   if (playerIndex >= 0) match.players[playerIndex] = player;
   else match.players.push(player);
   matchHistory.matches.sort((a, b) => (b.endedAt || b.updatedAt) - (a.endedAt || a.updatedAt));
   matchHistory.matches.splice(MAX_MATCH_HISTORY);
   await persistMatchHistory();
   return publicMatch(match);
+}
+
+function publicTracker(tracker) {
+  return {
+    id: tracker.id,
+    name: tracker.name || "OpenFront player",
+    createdAt: tracker.createdAt,
+    updatedAt: tracker.updatedAt,
+    lastReportAt: tracker.lastReportAt || null,
+  };
+}
+
+function matchesForTracker(trackerId) {
+  return matchHistory.matches
+    .filter((match) => match.players.some((player) => player.trackerId === trackerId || player.profileId === trackerId))
+    .map((match) => ({
+      ...publicMatch(match),
+      players: publicMatch(match).players.sort((a, b) => Number(b.profileId === trackerId) - Number(a.profileId === trackerId)),
+    }));
+}
+
+function trackerSummary(trackerId, matches) {
+  const reports = matches.flatMap((match) => match.players.filter((player) => player.profileId === trackerId));
+  const ffa = reports.filter((report) => report.mode === "ffa");
+  const teams = reports.filter((report) => report.mode === "team");
+  const confirmedFfa = ffa.filter((report) => report.resultConfidence !== "inferred");
+  const positioned = confirmedFfa.filter((report) => report.finishPosition > 0 && report.playerCount > 1);
+  const expectedWins = confirmedFfa.reduce((total, report) => total + (report.playerCount > 0 ? 1 / report.playerCount : 0), 0);
+  const ffaWins = confirmedFfa.filter((report) => report.outcome === "victory").length;
+  const teamDecisions = teams.filter((report) => report.outcome === "victory" || report.outcome === "defeat");
+  return {
+    matches: reports.length,
+    confirmed: reports.filter((report) => report.resultConfidence !== "inferred").length,
+    victories: reports.filter((report) => report.outcome === "victory").length,
+    defeats: reports.filter((report) => report.outcome === "defeat" || report.outcome === "eliminated").length,
+    likelyDefeats: reports.filter((report) => report.outcome === "likely_defeat").length,
+    ffa: {
+      matches: ffa.length,
+      wins: ffaWins,
+      expectedWins,
+      winIndex: expectedWins > 0 ? ffaWins / expectedWins : null,
+      averageFinish: positioned.length ? positioned.reduce((total, report) => total + report.finishPosition, 0) / positioned.length : null,
+      averageField: positioned.length ? positioned.reduce((total, report) => total + report.playerCount, 0) / positioned.length : null,
+      top10Rate: positioned.length ? positioned.filter((report) => report.finishPosition <= Math.ceil(report.playerCount * 0.1)).length / positioned.length : null,
+      top25Rate: positioned.length ? positioned.filter((report) => report.finishPosition <= Math.ceil(report.playerCount * 0.25)).length / positioned.length : null,
+    },
+    team: {
+      matches: teams.length,
+      wins: teamDecisions.filter((report) => report.outcome === "victory").length,
+      winRate: teamDecisions.length ? teamDecisions.filter((report) => report.outcome === "victory").length / teamDecisions.length : null,
+    },
+  };
+}
+
+function trackerOverview(tracker, limit = 50) {
+  const matches = matchesForTracker(tracker.id).slice(0, limit);
+  return { profile: publicTracker(tracker), summary: trackerSummary(tracker.id, matches), matches };
+}
+
+async function registerTracker(name) {
+  const token = randomToken();
+  const now = Date.now();
+  const tracker = {
+    id: randomToken(9),
+    tokenHash: tokenHash(token),
+    name: cleanText(name, 32) || "OpenFront player",
+    createdAt: now,
+    updatedAt: now,
+    lastReportAt: null,
+  };
+  matchHistory.trackers.push(tracker);
+  trackerTokens.set(tracker.tokenHash, tracker);
+  await persistMatchHistory();
+  return { token, tracker };
+}
+
+async function handleTrackerApi(req, res, url) {
+  if (!url.pathname.startsWith("/api/tracker/")) return false;
+  if (req.method === "OPTIONS") { json(res, 204, {}); return true; }
+  if (url.pathname === "/api/tracker/register" && req.method === "POST") {
+    const body = await readJson(req);
+    const { token, tracker } = await registerTracker(body.name);
+    json(res, 201, { trackerToken: token, profile: publicTracker(tracker), historyUrl: `${MATCH_HISTORY_URL}?player=${encodeURIComponent(tracker.id)}` });
+    return true;
+  }
+  if (url.pathname === "/api/tracker/matches" && req.method === "POST") {
+    const tracker = bearerTracker(req);
+    if (!tracker) { json(res, 401, { error: "Tracker authorization is missing." }); return true; }
+    const body = await readJson(req);
+    const report = cleanMatchReport(body);
+    if (!report) { json(res, 400, { error: "A completed or inferred match report with a game ID is required." }); return true; }
+    if (report.playerName) tracker.name = report.playerName;
+    tracker.updatedAt = Date.now();
+    tracker.lastReportAt = tracker.updatedAt;
+    const match = await recordMatchReport({ identityKey: `tracker:${tracker.id}`, trackerId: tracker.id, profileId: tracker.id, name: tracker.name, worker: body.worker }, report);
+    json(res, 200, { ok: true, match, profile: publicTracker(tracker), historyUrl: `${MATCH_HISTORY_URL}?player=${encodeURIComponent(tracker.id)}` });
+    return true;
+  }
+  if (url.pathname === "/api/tracker/overview" && req.method === "GET") {
+    const player = cleanText(url.searchParams.get("player"), 32);
+    const limit = Math.min(100, Math.max(1, boundedInteger(url.searchParams.get("limit"), 100) || 50));
+    const tracker = matchHistory.trackers.find((item) => item.id === player);
+    if (player && !tracker) { json(res, 404, { error: "Player profile was not found." }); return true; }
+    if (tracker) { json(res, 200, trackerOverview(tracker, limit)); return true; }
+    json(res, 200, {
+      profile: null,
+      summary: null,
+      matches: matchHistory.matches.slice(0, limit).map(publicMatch),
+      profiles: matchHistory.trackers.slice().sort((a, b) => (b.lastReportAt || 0) - (a.lastReportAt || 0)).slice(0, 20).map(publicTracker),
+    });
+    return true;
+  }
+  if (url.pathname === "/api/tracker/profiles" && req.method === "GET") {
+    const query = cleanText(url.searchParams.get("q"), 32).toLocaleLowerCase("en-US");
+    const profiles = matchHistory.trackers
+      .filter((tracker) => !query || tracker.name.toLocaleLowerCase("en-US").includes(query) || tracker.id.toLocaleLowerCase("en-US").includes(query))
+      .sort((a, b) => (b.lastReportAt || 0) - (a.lastReportAt || 0))
+      .slice(0, 20)
+      .map(publicTracker);
+    json(res, 200, { profiles });
+    return true;
+  }
+  json(res, 404, { error: "Unknown tracker endpoint." });
+  return true;
 }
 
 async function handleCompanionApi(req, res, url) {
@@ -758,7 +937,12 @@ async function handleCompanionApi(req, res, url) {
     const report = cleanMatchReport(body);
     if (!report) { json(res, 400, { error: "A finalized match report with a game ID is required." }); return true; }
     if (member.gameId !== report.gameId) { json(res, 409, { error: "This companion is not linked to that match." }); return true; }
-    const match = await recordMatchReport(member, report);
+    const match = await recordMatchReport({
+      identityKey: `party:${member.id}`,
+      name: member.name,
+      worker: member.worker,
+      launchLobby: member.room?.currentLaunch?.lobby,
+    }, report);
     json(res, 200, { ok: true, match });
     return true;
   }
@@ -776,6 +960,7 @@ async function handleCompanionApi(req, res, url) {
 
 async function handleRequest(req, res) {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+  if (await handleTrackerApi(req, res, url)) return;
   if (await handleCompanionApi(req, res, url)) return;
   if (url.pathname === "/api/matches" && req.method === "GET") {
     const limit = Math.min(100, Math.max(1, boundedInteger(url.searchParams.get("limit"), 100) || 30));

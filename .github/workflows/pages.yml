@@ -1,4 +1,4 @@
-name: Deploy GitHub Pages prototype
+name: Deploy OpenFront Tracker
 
 on:
   push:

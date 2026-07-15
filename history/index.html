@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#07111c" />
+    <meta name="description" content="Public OpenFront player profiles and match reports captured by the OpenFront userscript." />
+    <title>OpenFront Tracker — Match history</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="terrain" aria-hidden="true"><span></span><span></span><span></span></div>
+    <header class="siteHeader">
+      <a class="brand" href="./" aria-label="OpenFront Tracker home">
+        <span class="brandMark" aria-hidden="true"><i></i><i></i></span>
+        <span><b>OpenFront</b><small>After-action tracker</small></span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a class="active" href="./">Match history</a>
+        <a href="../viewer/">Lobby board</a>
+        <a id="installScript" href="../openfront-party-companion.user.js">Install userscript</a>
+      </nav>
+      <form class="playerSearch" id="playerSearch" role="search">
+        <label class="srOnly" for="playerSearchInput">Search tracked player</label>
+        <input id="playerSearchInput" name="q" type="search" autocomplete="off" placeholder="Search tracked player" />
+        <button type="submit" aria-label="Search">↗</button>
+        <div class="searchResults" id="searchResults" hidden></div>
+      </form>
+    </header>
+
+    <main>
+      <section class="profileDeck" aria-labelledby="profileName">
+        <div class="profileIdentity">
+          <div class="profileSigil" aria-hidden="true"><span></span></div>
+          <div>
+            <p class="eyebrow">Public combat record</p>
+            <h1 id="profileName">OpenFront Tracker</h1>
+            <p class="profileMeta"><span id="profileId">All reported matches</span><i></i><span id="profileUpdated">Connecting to relay…</span></p>
+          </div>
+        </div>
+        <div class="profileStats" id="profileStats" aria-live="polite">
+          <div><span>FFA average finish</span><strong>—</strong><small>confirmed games</small></div>
+          <div><span>FFA top 10%</span><strong>—</strong><small>of the starting field</small></div>
+          <div><span>FFA win index</span><strong>—</strong><small>versus expected wins</small></div>
+          <div><span>Team win rate</span><strong>—</strong><small>confirmed team games</small></div>
+        </div>
+        <div class="formStrip">
+          <div><span>Recent form</span><small id="formSummary">Waiting for reports</small></div>
+          <div class="formDots" id="formDots" aria-label="Recent match results"></div>
+        </div>
+      </section>
+
+      <section class="toolbar" aria-label="Match filters">
+        <div class="sectionTitle">
+          <p class="eyebrow">After-action log</p>
+          <h2>Match history</h2>
+        </div>
+        <label>Mode<select id="modeFilter"><option value="all">All modes</option><option value="ffa">FFA</option><option value="team">Teams</option></select></label>
+        <label>Map<select id="mapFilter"><option value="all">All maps</option></select></label>
+        <label>Result<select id="resultFilter"><option value="all">All results</option><option value="victory">Victory</option><option value="defeat">Defeat</option><option value="eliminated">Eliminated</option><option value="likely_defeat">Likely defeat</option></select></label>
+        <button id="refresh" type="button">Refresh reports</button>
+      </section>
+
+      <div class="contentGrid">
+        <section class="matchFeed" id="matchFeed" aria-live="polite" aria-busy="true">
+          <article class="feedMessage"><span class="loadingPulse"></span><h3>Loading match reports</h3><p>Reading the public tracker feed from moss.nonekode.fi.</p></article>
+        </section>
+
+        <aside>
+          <section class="contextCard placementGuide">
+            <p class="eyebrow">Field context</p>
+            <h2>A loss is not just a loss.</h2>
+            <p>In a 100-player FFA, one win is the statistical expectation after 100 games. Placement and field size tell the rest of the story.</p>
+            <div class="miniRail"><span style="--at: 7%">Top 10%</span><span style="--at: 49%">Median</span><span style="--at: 91%">Field</span></div>
+          </section>
+          <section class="contextCard" id="topMaps">
+            <div class="contextHead"><p class="eyebrow">Deployment record</p><span>Games</span></div>
+            <h2>Top maps</h2>
+            <div class="contextEmpty">Map totals appear after the first report.</div>
+          </section>
+          <section class="contextCard integrityCard">
+            <p class="eyebrow">Result integrity</p>
+            <ul>
+              <li><i class="confirmed"></i><span><b>Confirmed</b> OpenFront reported a winner or elimination.</span></li>
+              <li><i class="inferred"></i><span><b>Inferred</b> The player returned home before a result appeared.</span></li>
+            </ul>
+          </section>
+        </aside>
+      </div>
+    </main>
+
+    <footer><span>Independent community tracker</span><span>Game data is reported by the installed userscript</span><a href="https://github.com/D2ware/openfront-party">Source on GitHub</a></footer>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

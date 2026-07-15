@@ -31,8 +31,7 @@
     filterSummary: byId("partyFilterSummary"),
     editFilters: byId("partyEditFilters"),
     companionStatus: byId("partyCompanionStatus"),
-    installChrome: byId("partyInstallChrome"),
-    installFirefox: byId("partyInstallFirefox"),
+    installScript: byId("partyInstallScript"),
     connectOpenFront: byId("partyConnectOpenFront"),
     companionConsent: byId("partyCompanionConsent"),
     companionConsentCheck: byId("partyCompanionConsentCheck"),
@@ -92,8 +91,9 @@
   const relayHttpOrigin = httpOrigin(deploymentConfig.relayOrigin || window.OPENFRONT_PARTY_RELAY_ORIGIN);
   const relayUrl = relayHttpOrigin.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
   const viewerUrl = new URL("./", location.href).href;
-  if (el.installChrome) el.installChrome.href = new URL(deploymentConfig.extensionChromePath || "../extensions/openfront-party-chrome.zip", location.href).href;
-  if (el.installFirefox) el.installFirefox.href = new URL(deploymentConfig.extensionFirefoxPath || "../extensions/openfront-party-firefox.xpi", location.href).href;
+  if (el.installScript) el.installScript.href = new URL(deploymentConfig.userscriptPath || "../openfront-party-companion.user.js", location.href).href;
+  const historyLink = byId("matchHistoryLink");
+  if (historyLink) historyLink.href = new URL(deploymentConfig.historyPath || "../history/", location.href).href;
 
   const stateLabels = {
     watching: "Watching lobby board",
@@ -731,8 +731,8 @@
       el.openLaunch.textContent = launchedWithParty ? "Open lobby" : "Open lobby anyway";
     }
     el.companionStatus.textContent = current.companionConnected
-      ? `Extension linked · ${stateLabels[current.phase] || current.phase}`
-      : "Install the Chrome or Firefox extension to follow launches and report matches.";
+      ? `Userscript linked · ${stateLabels[current.phase] || current.phase}`
+      : "Install the userscript to follow launches and report every match.";
     el.connectOpenFront.textContent = current.companionConnected ? "Relink OpenFront" : "Link OpenFront";
     const ready = current.phase === "ready";
     const canSetReady = ["watching", "finished", "failed", "ready"].includes(current.phase);

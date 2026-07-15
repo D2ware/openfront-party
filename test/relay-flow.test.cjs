@@ -186,6 +186,80 @@ test("finalized companion reports are authenticated, grouped, and persisted", as
   );
 });
 
+test("standalone tracker records FFA placement and field-adjusted performance without a party", async (t) => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "openfront-tracker-history-"));
+  const historyFile = path.join(dataDir, "matches.json");
+  const relay = await startRelay({ historyFile });
+  t.after(() => {
+    relay.child.kill();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  const registration = await jsonRequest(relay.origin, "/api/tracker/register", {
+    method: "POST",
+    data: { name: "Northwind" },
+  });
+  assert.ok(registration.trackerToken);
+  assert.equal(registration.profile.name, "Northwind");
+
+  const base = {
+    finalized: true,
+    complete: true,
+    playerName: "Northwind",
+    map: "World",
+    mode: "Free For All",
+    playerCount: 100,
+    resultConfidence: "confirmed",
+    endedAt: Date.now(),
+  };
+  await jsonRequest(relay.origin, "/api/tracker/matches", {
+    method: "POST",
+    token: registration.trackerToken,
+    data: { ...base, gameId: "FFA-WIN", outcome: "victory", resultSource: "win_update", finishPosition: 1 },
+  });
+  await jsonRequest(relay.origin, "/api/tracker/matches", {
+    method: "POST",
+    token: registration.trackerToken,
+    data: { ...base, gameId: "FFA-TWENTIETH", outcome: "eliminated", resultSource: "player_eliminated", finishPosition: 20 },
+  });
+  await jsonRequest(relay.origin, "/api/tracker/matches", {
+    method: "POST",
+    token: registration.trackerToken,
+    data: {
+      ...base,
+      gameId: "FFA-EXIT",
+      outcome: "likely_defeat",
+      resultConfidence: "inferred",
+      resultSource: "returned_to_home",
+      complete: false,
+    },
+  });
+
+  const overview = await jsonRequest(relay.origin, `/api/tracker/overview?player=${registration.profile.id}`);
+  assert.equal(overview.matches.length, 3);
+  assert.equal(overview.summary.matches, 3);
+  assert.equal(overview.summary.confirmed, 2);
+  assert.equal(overview.summary.likelyDefeats, 1);
+  assert.equal(overview.summary.ffa.expectedWins, 0.02);
+  assert.equal(overview.summary.ffa.winIndex, 50);
+  assert.equal(overview.summary.ffa.averageFinish, 10.5);
+  assert.equal(overview.summary.ffa.top10Rate, 0.5);
+  assert.equal(overview.matches[0].players[0].profileId, registration.profile.id);
+  assert.equal("trackerId" in overview.matches[0].players[0], false);
+
+  const profiles = await jsonRequest(relay.origin, "/api/tracker/profiles?q=north");
+  assert.equal(profiles.profiles[0].id, registration.profile.id);
+  await assert.rejects(
+    jsonRequest(relay.origin, "/api/tracker/matches", { method: "POST", token: "wrong-token", data: base }),
+    (error) => error.status === 401,
+  );
+
+  const persisted = JSON.parse(fs.readFileSync(historyFile, "utf8"));
+  assert.equal(persisted.version, 2);
+  assert.equal(persisted.trackers.length, 1);
+  assert.equal(JSON.stringify(persisted).includes(registration.trackerToken), false);
+});
+
 test("party members can report Ready from the viewer connection", async (t) => {
   const relay = await startRelay();
   const leader = new TestClient(relay.wsUrl);

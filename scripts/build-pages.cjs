@@ -1,7 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { buildExtensions } = require("./build-extensions.cjs");
 
 const root = path.resolve(__dirname, "..");
 const output = path.join(root, "_site");
@@ -20,50 +19,56 @@ function relayOrigin(value) {
   return url.origin;
 }
 
+function versionAssets(directory, assets) {
+  const digest = crypto.createHash("sha256");
+  for (const asset of assets) digest.update(fs.readFileSync(path.join(directory, asset)));
+  const version = digest.digest("hex").slice(0, 12);
+  const htmlPath = path.join(directory, "index.html");
+  let html = fs.readFileSync(htmlPath, "utf8");
+  for (const asset of assets) {
+    html = html.replace(`href="${asset}"`, `href="${asset}?v=${version}"`)
+      .replace(`src="${asset}"`, `src="${asset}?v=${version}"`);
+  }
+  fs.writeFileSync(htmlPath, html);
+  return version;
+}
+
 const relay = relayOrigin(relayInput);
-const extensions = buildExtensions(relay);
 fs.rmSync(output, { recursive: true, force: true });
 fs.mkdirSync(output, { recursive: true });
-fs.cpSync(path.join(root, "viewer"), path.join(output, "viewer"), {
-  recursive: true,
-  filter: (source) => path.basename(source) !== ".git",
-});
-fs.copyFileSync(
-  path.join(root, "public", "openfront-party-companion.user.js"),
-  path.join(output, "openfront-party-companion.user.js"),
-);
-fs.mkdirSync(path.join(output, "extensions"), { recursive: true });
-fs.copyFileSync(extensions.chromePackage, path.join(output, "extensions", "openfront-party-chrome.zip"));
-fs.copyFileSync(extensions.firefoxPackage, path.join(output, "extensions", "openfront-party-firefox.xpi"));
-fs.copyFileSync(extensions.firefoxSourcePackage, path.join(output, "extensions", "openfront-party-firefox-source.zip"));
+for (const directory of ["viewer", "history"]) {
+  fs.cpSync(path.join(root, directory), path.join(output, directory), {
+    recursive: true,
+    filter: (source) => path.basename(source) !== ".git",
+  });
+}
 
+const userscriptSource = fs.readFileSync(path.join(root, "public", "openfront-party-companion.user.js"), "utf8");
+const userscript = userscriptSource.replace(
+  /const DEFAULT_RELAY = "[^"]+";/,
+  `const DEFAULT_RELAY = ${JSON.stringify(relay)};`,
+);
+fs.writeFileSync(path.join(output, "openfront-party-companion.user.js"), userscript);
 fs.writeFileSync(path.join(output, ".nojekyll"), "");
+
 fs.writeFileSync(
   path.join(output, "viewer", "config.js"),
   `window.OPENFRONT_PARTY_CONFIG = Object.freeze(${JSON.stringify({
     relayOrigin: relay,
     userscriptPath: "../openfront-party-companion.user.js",
-    extensionChromePath: "../extensions/openfront-party-chrome.zip",
-    extensionFirefoxPath: "../extensions/openfront-party-firefox.xpi",
-    companionVersion: extensions.version,
+    historyPath: "../history/",
+  }, null, 2)});\n`,
+);
+fs.writeFileSync(
+  path.join(output, "history", "config.js"),
+  `window.OPENFRONT_TRACKER_CONFIG = Object.freeze(${JSON.stringify({
+    relayOrigin: relay,
+    userscriptPath: "../openfront-party-companion.user.js",
   }, null, 2)});\n`,
 );
 
-const viewerOutput = path.join(output, "viewer");
-const assetVersion = crypto.createHash("sha256")
-  .update(fs.readFileSync(path.join(viewerOutput, "styles.css")))
-  .update(fs.readFileSync(path.join(viewerOutput, "party.js")))
-  .update(fs.readFileSync(path.join(viewerOutput, "history.js")))
-  .update(fs.readFileSync(path.join(viewerOutput, "config.js")))
-  .digest("hex")
-  .slice(0, 12);
-const viewerHtmlPath = path.join(viewerOutput, "index.html");
-const viewerHtml = fs.readFileSync(viewerHtmlPath, "utf8")
-  .replace('href="styles.css"', `href="styles.css?v=${assetVersion}"`)
-  .replace('src="config.js"', `src="config.js?v=${assetVersion}"`)
-  .replace('src="party.js"', `src="party.js?v=${assetVersion}"`)
-  .replace('src="history.js"', `src="history.js?v=${assetVersion}"`);
-fs.writeFileSync(viewerHtmlPath, viewerHtml);
+const viewerVersion = versionAssets(path.join(output, "viewer"), ["styles.css", "config.js", "party.js"]);
+const historyVersion = versionAssets(path.join(output, "history"), ["styles.css", "config.js", "app.js"]);
 
 fs.writeFileSync(
   path.join(output, "index.html"),
@@ -72,15 +77,15 @@ fs.writeFileSync(
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta http-equiv="refresh" content="0; url=./viewer/">
-    <title>OpenFront Party Coordinator</title>
-    <script>location.replace(new URL("./viewer/", location.href));</script>
+    <meta http-equiv="refresh" content="0; url=./history/">
+    <title>OpenFront Tracker</title>
+    <script>location.replace(new URL("./history/", location.href));</script>
   </head>
-  <body><a href="./viewer/">Open the lobby board</a></body>
+  <body><a href="./history/">Open the match tracker</a></body>
 </html>
 `,
 );
 
 console.log(`GitHub Pages artifact created in ${output}`);
-console.log(`Party relay: ${relay}`);
-console.log(`Viewer asset version: ${assetVersion}`);
+console.log(`Tracker relay: ${relay}`);
+console.log(`Asset versions: viewer ${viewerVersion}, history ${historyVersion}`);
