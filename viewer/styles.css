@@ -677,7 +677,7 @@ button:active { transform: translateY(1px); }
   width: min(1240px, 100%);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
   align-items: start;
 }
@@ -740,6 +740,10 @@ button:active { transform: translateY(1px); }
 .cardColumn[data-cat="special"] .colHeader { border-color: rgba(251, 191, 36, 0.32); }
 .cardColumn[data-cat="custom"] .colHeader { border-color: rgba(192, 132, 252, 0.35); }
 
+.cardColumn[data-cat="custom"] {
+  grid-column: 1 / -1;
+}
+
 .colCards {
   display: grid;
   grid-template-columns: 1fr;
@@ -747,11 +751,18 @@ button:active { transform: translateY(1px); }
 }
 
 .cardColumn[data-cat="custom"] .colCards {
-  grid-auto-rows: max-content;
-  max-height: 602px;
-  overflow-y: auto;
-  padding-right: 4px;
-  overscroll-behavior: contain;
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(340px, calc((100% - 28px) / 3));
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 6px;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+}
+
+.cardColumn[data-cat="custom"] .gameCard {
+  scroll-snap-align: start;
 }
 
 .colEmpty {
@@ -1085,11 +1096,21 @@ body.card-view .discord-btn {
   .colCards {
     grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   }
+
+  .cardColumn[data-cat="custom"] .colCards {
+    grid-template-columns: none;
+    grid-auto-columns: minmax(300px, calc((100% - 14px) / 2));
+  }
 }
 
 @media (max-width: 560px) {
   .colCards {
     grid-template-columns: 1fr;
+  }
+
+  .cardColumn[data-cat="custom"] .colCards {
+    grid-template-columns: none;
+    grid-auto-columns: minmax(260px, calc(100vw - 48px));
   }
 
   .gameCardImage {
