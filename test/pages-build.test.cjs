@@ -45,6 +45,9 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
   assert.match(styles, /\.discordRoleButtons/);
   assert.doesNotMatch(styles, /max-height: 602px/);
   assert.match(indexHtml, /col\.key === "custom" \? 0 : COLUMN_MIN_SLOTS/);
+  assert.match(indexHtml, /function handleCustomLobbyWheel\(event\)/);
+  assert.match(indexHtml, /addEventListener\("wheel", handleCustomLobbyWheel, \{ passive: false \}\)/);
+  assert.match(indexHtml, /host\.scrollLeft = Math\.max\(0, Math\.min\(maxScroll, host\.scrollLeft \+ delta\)\)/);
   assert.match(styles, /\.cardBadge\.danger/);
   assert.doesNotMatch(indexHtml, /party|companion/i);
   assert.doesNotMatch(styles, /party|companion/i);
@@ -84,4 +87,42 @@ test("only hosted games are routed to Custom Lobby", () => {
     custom: ["hosted-open", "hosted-timed"],
   });
   assert.equal(Object.values(buckets).flat().length, games.length);
+});
+
+test("mouse wheel scrolls the Custom Lobby row horizontally", () => {
+  const source = fs.readFileSync(path.join(root, "viewer", "index.html"), "utf8");
+  const match = source.match(/function customLobbyWheelDelta\(event, pageSize\) \{[\s\S]*?\n      \}\n\n      \/\/ Build/);
+  assert.ok(match, "Custom Lobby wheel handler should be present");
+
+  const functions = match[0].replace(/\n\n      \/\/ Build$/, "");
+  const { handleCustomLobbyWheel } = Function(
+    "WheelEvent",
+    `"use strict"; ${functions}; return { handleCustomLobbyWheel };`
+  )({ DOM_DELTA_LINE: 1, DOM_DELTA_PAGE: 2 });
+
+  const host = { clientWidth: 380, scrollWidth: 1000, scrollLeft: 0 };
+  let prevented = false;
+  handleCustomLobbyWheel({
+    ctrlKey: false,
+    deltaMode: 0,
+    deltaY: 120,
+    currentTarget: host,
+    preventDefault() { prevented = true; },
+  });
+
+  assert.equal(host.scrollLeft, 120);
+  assert.equal(prevented, true);
+
+  host.scrollLeft = 620;
+  prevented = false;
+  handleCustomLobbyWheel({
+    ctrlKey: false,
+    deltaMode: 0,
+    deltaY: 120,
+    currentTarget: host,
+    preventDefault() { prevented = true; },
+  });
+
+  assert.equal(host.scrollLeft, 620);
+  assert.equal(prevented, false, "page scrolling should resume at the row edge");
 });
