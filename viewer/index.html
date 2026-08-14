@@ -2042,7 +2042,12 @@
       }
 
       function customLobbyContentSignature(g) {
+        const rawGame = { ...(g.raw || {}) };
+        delete rawGame.numClients;
+        delete rawGame.startsAt;
+
         return stableLobbyValue({
+          rawGame,
           map: g.map,
           kind: g.kind,
           format: g.format,
@@ -2057,20 +2062,18 @@
         const id = String(g.id || "");
         if (!id) return 0;
 
+        const signature = customLobbyContentSignature(g);
         let entry = cache.get(id);
         if (!entry) {
           entry = {
             checkedAt: now,
-            signature: customLobbyContentSignature(g),
+            signature,
             revision: 1,
           };
           cache.set(id, entry);
           return entry.revision;
         }
 
-        if (now - entry.checkedAt < CUSTOM_LOBBY_REFRESH_MS) return entry.revision;
-
-        const signature = customLobbyContentSignature(g);
         entry.checkedAt = now;
         if (signature !== entry.signature) {
           entry.signature = signature;
@@ -2099,8 +2102,8 @@
       }
 
       // Identifies the *structure*: which game IDs are in which column, plus the
-      // chosen sort. Hosted games also include their minute-checked content
-      // revision, while player counts and countdowns continue to patch in place.
+      // chosen sort. Hosted games also include a full snapshot content revision,
+      // while player counts and countdowns continue to patch in place.
       function structSignature(buckets, sort) {
         const ids = (column) => buckets[column.key]
           .map((g) => `${String(g.id || "")}${column.key === "custom" ? `@${g.cardRevision ?? 0}` : ""}`)
