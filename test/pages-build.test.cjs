@@ -217,7 +217,7 @@ test("structural updates preserve the visible lobby column position", () => {
   assert.deepEqual(scrollCalls, [[0, 160]]);
 });
 
-test("custom lobby settings are compared by game ID once per minute", () => {
+test("all custom lobby snapshot data refreshes immediately under the same game ID", () => {
   const source = fs.readFileSync(path.join(root, "viewer", "index.html"), "utf8");
   const start = source.indexOf("const CUSTOM_LOBBY_REFRESH_MS");
   const end = source.indexOf("function refreshCustomLobbyCards(", start);
@@ -236,15 +236,32 @@ test("custom lobby settings are compared by game ID once per minute", () => {
     playersPerTeam: null,
     maxPlayers: 40,
     cfg: { startingGold: 5_000_000, randomSpawn: false },
+    raw: {
+      gameID: "hosted-123",
+      numClients: 5,
+      startsAt: 1_000,
+      hostedBy: "first-host",
+    },
   };
 
   assert.equal(refreshCustomLobbyRevision(cache, lobby, 0), 1);
 
   lobby.map = "North America";
   lobby.cfg = { randomSpawn: true, startingGold: 25_000_000 };
-  assert.equal(refreshCustomLobbyRevision(cache, lobby, 59_999), 1, "changes wait for the minute check");
-  assert.equal(refreshCustomLobbyRevision(cache, lobby, 60_000), 2, "map and settings refresh under the same ID");
+  assert.equal(refreshCustomLobbyRevision(cache, lobby, 1_000), 2, "map and settings refresh on the next snapshot");
 
   lobby.cfg = { startingGold: 25_000_000, randomSpawn: true };
-  assert.equal(refreshCustomLobbyRevision(cache, lobby, 120_000), 2, "object key order does not create a false change");
+  assert.equal(refreshCustomLobbyRevision(cache, lobby, 2_000), 2, "object key order does not create a false change");
+
+  lobby.raw.hostedBy = "second-host";
+  assert.equal(refreshCustomLobbyRevision(cache, lobby, 3_000), 3, "previously unknown raw fields can change");
+
+  lobby.kind = "team";
+  lobby.teamCount = 2;
+  lobby.cfg.gameMode = "team";
+  assert.equal(refreshCustomLobbyRevision(cache, lobby, 4_000), 4, "the displayed game type can change");
+
+  lobby.raw.numClients = 12;
+  lobby.raw.startsAt = 2_000;
+  assert.equal(refreshCustomLobbyRevision(cache, lobby, 5_000), 4, "live player and countdown fields do not rebuild the card");
 });
