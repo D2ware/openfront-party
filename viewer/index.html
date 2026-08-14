@@ -1358,6 +1358,24 @@
         return event.deltaY;
       }
 
+      const customLobbyScrollStates = new WeakMap();
+      const CUSTOM_LOBBY_SCROLL_EASE = 0.18;
+
+      function animateCustomLobbyScroll(host, scrollState) {
+        const maxScroll = Math.max(0, host.scrollWidth - host.clientWidth);
+        scrollState.target = Math.max(0, Math.min(maxScroll, scrollState.target));
+        const remaining = scrollState.target - host.scrollLeft;
+
+        if (Math.abs(remaining) < 0.5) {
+          host.scrollLeft = scrollState.target;
+          scrollState.frame = 0;
+          return;
+        }
+
+        host.scrollLeft += remaining * CUSTOM_LOBBY_SCROLL_EASE;
+        scrollState.frame = requestAnimationFrame(() => animateCustomLobbyScroll(host, scrollState));
+      }
+
       function handleCustomLobbyWheel(event) {
         if (event.ctrlKey || event.deltaY === 0) return;
 
@@ -1366,15 +1384,33 @@
         if (maxScroll === 0) return;
 
         const delta = customLobbyWheelDelta(event, host.clientWidth);
-        const atStart = host.scrollLeft <= 0;
-        const atEnd = host.scrollLeft >= maxScroll - 1;
+        let scrollState = customLobbyScrollStates.get(host);
+        if (!scrollState) {
+          scrollState = { target: host.scrollLeft, frame: 0 };
+          customLobbyScrollStates.set(host, scrollState);
+        } else if (scrollState.frame === 0) {
+          scrollState.target = host.scrollLeft;
+        }
+
+        const nextTarget = Math.max(0, Math.min(maxScroll, scrollState.target + delta));
+        const atStart = delta < 0 && scrollState.target <= 0;
+        const atEnd = delta > 0 && scrollState.target >= maxScroll;
 
         // Consume the wheel only while the row can move in that direction. At
         // either edge the event remains available for normal page scrolling.
-        if ((delta < 0 && atStart) || (delta > 0 && atEnd)) return;
+        if (atStart || atEnd || nextTarget === scrollState.target) return;
 
         event.preventDefault();
-        host.scrollLeft = Math.max(0, Math.min(maxScroll, host.scrollLeft + delta));
+        scrollState.target = nextTarget;
+
+        if (prefersReducedMotion()) {
+          host.scrollLeft = scrollState.target;
+          return;
+        }
+
+        if (scrollState.frame === 0) {
+          scrollState.frame = requestAnimationFrame(() => animateCustomLobbyScroll(host, scrollState));
+        }
       }
 
       // Build the lobby column shells once. Cards are filled in (and reused)
