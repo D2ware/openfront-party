@@ -1075,7 +1075,10 @@
         else if (compactTeam === "quads") format = "Quads";
         else if (compactTeam === "humansvsnations") format = "HumansVsNations";
       
-        const kind = teamCount && teamCount > 1 ? "team" : (format ? "team" : (g.__rawType === "team" ? "team" : "ffa"));
+        const gameMode = String(cfg.gameMode ?? "").trim().toLowerCase();
+        const kind = teamCount && teamCount > 1
+          ? "team"
+          : (format || gameMode === "team" || gameMode === "teams" || g.__rawType === "team" ? "team" : "ffa");
       
         return {
           raw: g,
@@ -1665,6 +1668,18 @@
       function modeSummaryLine(g) {
         return typeLabelShort(g);
       }
+
+      function isCustomLobby(g) {
+        const publicType = String(g?.raw?.__rawType ?? g?.raw?.publicGameType ?? "").toLowerCase();
+        return publicType === "hosted" || g?.startsAt === null;
+      }
+
+      function prettySettingValue(value) {
+        return String(value ?? "")
+          .replace(/([a-z])([A-Z])/g, "$1 $2")
+          .replace(/[_-]+/g, " ")
+          .replace(/\b\w/g, (letter) => letter.toUpperCase());
+      }
       
       // All active modifiers for a game as pretty labels. Labels mirror OpenFront's
       // own getActiveModifiers() (src/client/Utils.ts) so they match the in-game
@@ -1672,30 +1687,99 @@
       // the raw gameConfig (map size, disabledUnits, top-level waterNukes) so a tag
       // still shows however the lobby encodes it. Team format is omitted (the mode
       // line already conveys it).
-      function gameModifierLabels(g) {
+      function gameModifierDetails(g) {
         const pm = g.pm || {};
         const cfg = g.cfg || {};
         const disabled = Array.isArray(cfg.disabledUnits) ? cfg.disabledUnits : [];
-        const labels = [];
+        const details = [];
+        const seen = new Set();
+        const push = (label, tone = "", title = "") => {
+          if (!label || seen.has(label)) return;
+          seen.add(label);
+          details.push({ label, tone, title });
+        };
 
         const startingGold = getNumber(g.raw, "startingGold");
-        if (Number.isFinite(startingGold) && startingGold > 0) labels.push(`${compactNumber(startingGold)} Starting Gold`);
+        if (Number.isFinite(startingGold) && startingGold > 0) push(`${compactNumber(startingGold)} Starting Gold`);
 
         const goldMultiplier = getNumber(g.raw, "goldMultiplier");
-        if (Number.isFinite(goldMultiplier) && goldMultiplier !== 1) labels.push(`${goldMultiplier}× Gold`);
+        if (Number.isFinite(goldMultiplier) && goldMultiplier !== 1) push(`${goldMultiplier}× Gold`);
 
-        if (pm.isRandomSpawn === true || cfg.randomSpawn === true) labels.push("Random Spawn");
-        if (pm.isCompact === true || cfg.gameMapSize === "Compact") labels.push("Compact Map");
-        if (pm.isCrowded === true) labels.push("Crowded");
-        if (pm.isHardNations === true) labels.push("Hard Nations");
-        if (pm.isAlliancesDisabled === true || cfg.disableAlliances === true) labels.push("Alliances Disabled");
-        if (pm.isPortsDisabled === true || disabled.includes("Port")) labels.push("Ports Disabled");
-        if (pm.isNukesDisabled === true || disabled.includes("Atom Bomb")) labels.push("Nukes Disabled");
-        if (pm.isSAMsDisabled === true) labels.push("SAMs Disabled");
-        if (pm.isPeaceTime === true) labels.push("4min Peace");
-        if (pm.isWaterNukes === true || cfg.waterNukes === true) labels.push("Water Nukes");
+        if (pm.isRandomSpawn === true || cfg.randomSpawn === true) push("Random Spawn");
+        if (pm.isCompact === true || cfg.gameMapSize === "Compact") push("Compact Map");
+        if (pm.isCrowded === true) push("Crowded");
+        if (pm.isHardNations === true) push("Hard Nations");
+        if (cfg.difficulty && String(cfg.difficulty).toLowerCase() !== "easy") push(`${prettySettingValue(cfg.difficulty)} Difficulty`);
+        if (cfg.infiniteGold === true) push("Infinite Gold");
+        if (cfg.infiniteTroops === true) push("Infinite Troops");
+        if (cfg.instantBuild === true) push("Instant Build");
 
-        return labels;
+        if (pm.isAlliancesDisabled === true || cfg.disableAlliances === true || cfg.customAllianceDuration === 0) {
+          push("Alliances Disabled");
+        } else if (Number.isFinite(cfg.customAllianceDuration) && cfg.customAllianceDuration !== 5) {
+          push(`Alliance Duration: ${formatDuration(Math.round(cfg.customAllianceDuration * 60))}`);
+        }
+
+        if (pm.isPortsDisabled === true) push("Ports Disabled");
+        if (pm.isNukesDisabled === true) push("Nukes Disabled");
+        if (pm.isSAMsDisabled === true) push("SAMs Disabled");
+        if (pm.isPeaceTime === true) push("4min Peace");
+        if (pm.isWaterNukes === true || cfg.waterNukes === true) push("Water Nukes");
+
+        const doomsday = cfg.doomsdayClock || {};
+        if (pm.isDoomsdayClock === true || doomsday.enabled === true) {
+          const speed = doomsday.speed ? `: ${prettySettingValue(doomsday.speed)}` : "";
+          push(`Doomsday Clock${speed}`);
+        }
+
+        if (cfg.anonymizeNames === true) push("Anonymous Players");
+        if (cfg.disableClanTags === true) push("Clan Tags Disabled");
+
+        const isTeam = g.kind === "team";
+        if (cfg.donateGold === true && !isTeam) push("Donate Gold");
+        if (cfg.donateGold === false && isTeam) push("Donate Gold: Disabled");
+        if (cfg.donateTroops === true && !isTeam) push("Donate Troops");
+        if (cfg.donateTroops === false && isTeam) push("Donate Troops: Disabled");
+
+        if (Number.isFinite(cfg.maxTimerValue) && cfg.maxTimerValue > 0) {
+          push(`Game Length: ${formatDuration(Math.round(cfg.maxTimerValue * 60))}`);
+        }
+        if (Number.isFinite(cfg.spawnImmunityDuration)) {
+          const seconds = Math.round(cfg.spawnImmunityDuration / 10);
+          if (seconds !== 5) push(`Spawn Immunity: ${formatDuration(seconds)}`);
+        }
+        if (Number.isFinite(cfg.startDelay) && cfg.startDelay > 0) {
+          push(`Start Delay: ${formatDuration(Math.round(cfg.startDelay))}`);
+        }
+
+        const compactMap = pm.isCompact === true || cfg.gameMapSize === "Compact";
+        const defaultBots = compactMap ? 100 : 400;
+        if (Number.isFinite(cfg.bots) && cfg.bots !== defaultBots) push(`Bots: ${cfg.bots}`);
+        if (pm.isNationsDisabled === true || cfg.nations === "disabled") {
+          push("Nations Disabled");
+        } else if (Number.isFinite(cfg.nations) && cfg.nations > 0) {
+          push(`Nations: ${cfg.nations}`);
+        }
+
+        if (disabled.length > 0) {
+          push(`Disabled Units: ${disabled.length}`, "danger", disabled.map(prettySettingValue).join(", "));
+        }
+
+        const hostCheats = cfg.hostCheats || {};
+        if (hostCheats.infiniteGold === true) push("Host: Infinite Gold", "warning");
+        if (hostCheats.infiniteTroops === true) push("Host: Infinite Troops", "warning");
+        if (Number.isFinite(hostCheats.goldMultiplier) && hostCheats.goldMultiplier !== 1) {
+          push(`Host Gold: ${hostCheats.goldMultiplier}×`, "warning");
+        }
+        if (Number.isFinite(hostCheats.startingGold) && hostCheats.startingGold > 0) {
+          push(`Host Starting Gold: ${compactNumber(hostCheats.startingGold)}`, "warning");
+        }
+
+        return details;
+      }
+
+      function gameModifierLabels(g) {
+        return gameModifierDetails(g).map((detail) => detail.label);
       }
 
       function compactNumber(value) {
@@ -1743,9 +1827,16 @@
         const thumbUrl = getMapThumbnailUrl(map);
         const maxPlayers = g.maxPlayers;
         const isNewMatchFlash = state.flashIds.has(String(gameID));
-        const badges = cardBadgeLabels(g)
+        const customLobby = isCustomLobby(g);
+        const modifierDetails = gameModifierDetails(g);
+        const badges = (customLobby ? [] : modifierDetails.map((detail) => detail.label).sort((a, b) => badgeTextWidth(b) - badgeTextWidth(a)))
           .map((label) => `<span class="cardBadge">${escapeHtml(label)}</span>`)
           .join("");
+        const settings = customLobby && modifierDetails.length > 0
+          ? `<div class="gameCardSettings">${modifierDetails.map((detail) => `
+              <span class="gameCardSetting ${escapeHtml(detail.tone)}"${detail.title ? ` title="${escapeHtml(detail.title)}"` : ""}>${escapeHtml(detail.label)}</span>
+            `).join("")}</div>`
+          : "";
 
         return `
           <article
@@ -1775,6 +1866,7 @@
                 </div>
                 <div class="cardCode mono">${escapeHtml(gameID)}</div>
               </div>
+              ${settings}
             </div>
           </article>
         `;
@@ -1847,11 +1939,11 @@
           renderTable(sorted, serverTime);
           return;
         }
-        // Scheduled lobbies retain their server-assigned category. Lobbies without
-        // a start time are user-created/open lobbies, so group them separately.
+        // OpenFront publishes player-created lobbies in the "hosted" bucket.
+        // Keep the missing-start-time fallback for older feed payloads.
         const buckets = Object.fromEntries(CARD_COLUMNS.map((column) => [column.key, []]));
         for (const g of sorted) {
-          const cat = g.startsAt === null ? "custom" : (g.raw?.__rawType || g.raw?.publicGameType);
+          const cat = isCustomLobby(g) ? "custom" : (g.raw?.__rawType || g.raw?.publicGameType);
           if (buckets[cat]) buckets[cat].push(g);
         }
 

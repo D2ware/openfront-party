@@ -19,10 +19,16 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
 
   assert.match(indexHtml, /id="cardGrid"/);
   assert.match(indexHtml, /\{ key: "custom", label: "Custom Lobby" \}/);
-  assert.match(indexHtml, /g\.startsAt === null \? "custom"/);
+  assert.match(indexHtml, /publicType === "hosted"/);
+  assert.match(indexHtml, /isCustomLobby\(g\) \? "custom"/);
+  assert.match(indexHtml, /class="gameCardSettings"/);
+  assert.match(indexHtml, /Disabled Units:/);
+  assert.match(indexHtml, /Host: Infinite Gold/);
   assert.match(indexHtml, /href="styles\.css\?v=[a-f0-9]{12}"/);
   assert.match(styles, /data-cat="custom"/);
   assert.match(styles, /max-height: 602px/);
+  assert.match(styles, /grid-auto-rows: max-content/);
+  assert.match(styles, /\.gameCardSetting\.danger/);
   assert.doesNotMatch(indexHtml, /party|companion/i);
   assert.doesNotMatch(styles, /party|companion/i);
   assert.equal(fs.existsSync(path.join(output, "party.js")), false);
