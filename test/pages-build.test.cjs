@@ -60,6 +60,13 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
   assert.match(indexHtml, /function restoreViewportAnchor\(anchor\)/);
   assert.match(indexHtml, /window\.scrollBy\(0, offset\)/);
   assert.match(indexHtml, /restoreViewportAnchor\(viewportAnchor\);[\s\S]*if \(prevRects\) flipCards\(prevRects\)/);
+  assert.match(indexHtml, /CUSTOM_LOBBY_REFRESH_MS = 60_000/);
+  assert.match(indexHtml, /data-card-revision=/);
+  assert.match(indexHtml, /node\.dataset\.cardRevision !== cardRevision/);
+  assert.match(indexHtml, /let entry = cache\.get\(id\)/);
+  assert.match(indexHtml, /refreshCustomLobbyCards\(buckets\.custom\)/);
+  assert.match(indexHtml, /setInterval\(scheduleRender, CUSTOM_LOBBY_REFRESH_MS\)/);
+  assert.match(indexHtml, /column\.key === "custom" \? `@\$\{g\.cardRevision \?\? 0\}` : ""/);
   assert.match(styles, /\.cardBadge\.danger/);
   assert.doesNotMatch(indexHtml, /party|companion/i);
   assert.doesNotMatch(styles, /party|companion/i);
@@ -208,4 +215,36 @@ test("structural updates preserve the visible lobby column position", () => {
   targetTop = 260;
   helpers.restoreViewportAnchor(anchor);
   assert.deepEqual(scrollCalls, [[0, 160]]);
+});
+
+test("custom lobby settings are compared by game ID once per minute", () => {
+  const source = fs.readFileSync(path.join(root, "viewer", "index.html"), "utf8");
+  const start = source.indexOf("const CUSTOM_LOBBY_REFRESH_MS");
+  const end = source.indexOf("function refreshCustomLobbyCards(", start);
+  assert.ok(start >= 0 && end > start, "custom lobby revision helpers should be present");
+
+  const { refreshCustomLobbyRevision } = Function(
+    `"use strict"; ${source.slice(start, end)}; return { refreshCustomLobbyRevision };`
+  )();
+  const cache = new Map();
+  const lobby = {
+    id: "hosted-123",
+    map: "Europe",
+    kind: "ffa",
+    format: null,
+    teamCount: null,
+    playersPerTeam: null,
+    maxPlayers: 40,
+    cfg: { startingGold: 5_000_000, randomSpawn: false },
+  };
+
+  assert.equal(refreshCustomLobbyRevision(cache, lobby, 0), 1);
+
+  lobby.map = "North America";
+  lobby.cfg = { randomSpawn: true, startingGold: 25_000_000 };
+  assert.equal(refreshCustomLobbyRevision(cache, lobby, 59_999), 1, "changes wait for the minute check");
+  assert.equal(refreshCustomLobbyRevision(cache, lobby, 60_000), 2, "map and settings refresh under the same ID");
+
+  lobby.cfg = { startingGold: 25_000_000, randomSpawn: true };
+  assert.equal(refreshCustomLobbyRevision(cache, lobby, 120_000), 2, "object key order does not create a false change");
 });

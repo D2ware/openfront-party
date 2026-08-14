@@ -622,6 +622,8 @@
         audioCtx: null,
         renderScheduled: false,
         lastStructSig: "",
+        customLobbyRevisions: new Map(),
+        customLobbyRefreshTimer: null,
         filtersOpenTimer: null,
 
         reconnectTimer: null,
@@ -1447,6 +1449,12 @@
         for (const g of games) {
           const id = String(g.id || "");
           let node = id ? existing.get(id) : null;
+          const cardRevision = col.key === "custom" ? String(g.cardRevision ?? "") : "";
+          if (node && col.key === "custom" && node.dataset.cardRevision !== cardRevision) {
+            existing.delete(id);
+            node.remove();
+            node = null;
+          }
           if (node) {
             keep.add(id);
           } else {
@@ -1980,6 +1988,7 @@
             tabindex="0"
             role="link"
             data-game-id="${escapeHtml(gameID)}"
+            data-card-revision="${escapeHtml(String(g.cardRevision ?? ""))}"
             data-join-url="${escapeHtml(joinUrl)}"
           >
             <div class="gameCardImage">
@@ -2022,12 +2031,81 @@
         return `<div class="colEmpty"><span class="spawnDot"></span>Spawning game…</div>`;
       }
 
+      const CUSTOM_LOBBY_REFRESH_MS = 60_000;
+
+      function stableLobbyValue(value) {
+        if (Array.isArray(value)) return `[${value.map(stableLobbyValue).join(",")}]`;
+        if (value && typeof value === "object") {
+          return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableLobbyValue(value[key])}`).join(",")}}`;
+        }
+        return JSON.stringify(value);
+      }
+
+      function customLobbyContentSignature(g) {
+        return stableLobbyValue({
+          map: g.map,
+          kind: g.kind,
+          format: g.format,
+          teamCount: g.teamCount,
+          playersPerTeam: g.playersPerTeam,
+          maxPlayers: g.maxPlayers,
+          gameConfig: g.cfg,
+        });
+      }
+
+      function refreshCustomLobbyRevision(cache, g, now) {
+        const id = String(g.id || "");
+        if (!id) return 0;
+
+        let entry = cache.get(id);
+        if (!entry) {
+          entry = {
+            checkedAt: now,
+            signature: customLobbyContentSignature(g),
+            revision: 1,
+          };
+          cache.set(id, entry);
+          return entry.revision;
+        }
+
+        if (now - entry.checkedAt < CUSTOM_LOBBY_REFRESH_MS) return entry.revision;
+
+        const signature = customLobbyContentSignature(g);
+        entry.checkedAt = now;
+        if (signature !== entry.signature) {
+          entry.signature = signature;
+          entry.revision += 1;
+        }
+        return entry.revision;
+      }
+
+      function refreshCustomLobbyCards(games, now = Date.now()) {
+        const activeIds = new Set();
+        for (const game of games) {
+          const id = String(game.id || "");
+          if (!id) continue;
+          activeIds.add(id);
+          game.cardRevision = refreshCustomLobbyRevision(state.customLobbyRevisions, game, now);
+        }
+
+        for (const id of state.customLobbyRevisions.keys()) {
+          if (!activeIds.has(id)) state.customLobbyRevisions.delete(id);
+        }
+      }
+
+      function startCustomLobbyRefreshWatch() {
+        if (state.customLobbyRefreshTimer) clearInterval(state.customLobbyRefreshTimer);
+        state.customLobbyRefreshTimer = setInterval(scheduleRender, CUSTOM_LOBBY_REFRESH_MS);
+      }
+
       // Identifies the *structure*: which game IDs are in which column, plus the
-      // chosen sort. Player counts / countdowns changing does NOT change this, so
-      // a number-only tick patches in place; adding/removing a game rebuilds.
+      // chosen sort. Hosted games also include their minute-checked content
+      // revision, while player counts and countdowns continue to patch in place.
       function structSignature(buckets, sort) {
-        const ids = (arr) => arr.map((g) => String(g.id || "")).join(",");
-        return [sort, ...CARD_COLUMNS.map((column) => ids(buckets[column.key]))].join("|");
+        const ids = (column) => buckets[column.key]
+          .map((g) => `${String(g.id || "")}${column.key === "custom" ? `@${g.cardRevision ?? 0}` : ""}`)
+          .join(",");
+        return [sort, ...CARD_COLUMNS.map(ids)].join("|");
       }
 
       // Patch only the volatile bits (countdown + player count) on cards already
@@ -2082,6 +2160,7 @@
           const cat = isCustomLobby(g) ? "custom" : (g.raw?.__rawType || g.raw?.publicGameType);
           if (buckets[cat]) buckets[cat].push(g);
         }
+        refreshCustomLobbyCards(buckets.custom);
 
         // Structure = which game ids live in which column. Only that changing
         // touches the card nodes (add / remove / reorder); player counts and
@@ -2893,6 +2972,7 @@
       setLobbyView(state.view);
       wireActionLinks();
       updateAlertToggleUI();
+      startCustomLobbyRefreshWatch();
       connect();
     </script>
   </body>
