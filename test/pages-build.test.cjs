@@ -27,8 +27,12 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
   assert.match(indexHtml, /Host: Infinite Gold/);
   assert.match(indexHtml, /href="styles\.css\?v=[a-f0-9]{12}"/);
   assert.match(styles, /data-cat="custom"/);
-  assert.match(styles, /max-height: 602px/);
-  assert.match(styles, /grid-auto-rows: max-content/);
+  assert.match(styles, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /grid-column: 1 \/ -1/);
+  assert.match(styles, /grid-auto-flow: column/);
+  assert.match(styles, /overflow-x: auto/);
+  assert.doesNotMatch(styles, /max-height: 602px/);
+  assert.match(indexHtml, /col\.key === "custom" \? 0 : COLUMN_MIN_SLOTS/);
   assert.match(styles, /\.cardBadge\.danger/);
   assert.doesNotMatch(indexHtml, /party|companion/i);
   assert.doesNotMatch(styles, /party|companion/i);
