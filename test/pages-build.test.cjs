@@ -53,9 +53,11 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
   assert.match(indexHtml, /col\.key === "custom" \? 0 : COLUMN_MIN_SLOTS/);
   assert.match(indexHtml, /function handleCustomLobbyWheel\(event\)/);
   assert.match(indexHtml, /addEventListener\("wheel", handleCustomLobbyWheel, \{ passive: false \}\)/);
-  assert.match(indexHtml, /function animateCustomLobbyScroll\(host, scrollState\)/);
-  assert.match(indexHtml, /CUSTOM_LOBBY_SCROLL_EASE = 0\.18/);
-  assert.match(indexHtml, /requestAnimationFrame\(\(\) => animateCustomLobbyScroll\(host, scrollState\)\)/);
+  assert.match(indexHtml, /function animateCustomLobbyScroll\(host, scrollState, start, target, startedAt, now\)/);
+  assert.match(indexHtml, /CUSTOM_LOBBY_SCROLL_DURATION = 220/);
+  assert.match(indexHtml, /const eased = 1 - Math\.pow\(1 - progress, 4\)/);
+  assert.match(indexHtml, /cancelAnimationFrame\(scrollState\.frame\)/);
+  assert.match(indexHtml, /requestAnimationFrame\(\(time\) => animateCustomLobbyScroll\(host, scrollState, start, scrollState\.target, startedAt, time\)\)/);
   assert.match(indexHtml, /function captureViewportAnchor\(\)/);
   assert.match(indexHtml, /function restoreViewportAnchor\(anchor\)/);
   assert.match(indexHtml, /window\.scrollBy\(0, offset\)/);
@@ -108,70 +110,14 @@ test("only hosted games are routed to Custom Lobby", () => {
   assert.equal(Object.values(buckets).flat().length, games.length);
 });
 
-test("mouse wheel scrolls the Custom Lobby row horizontally", () => {
+test("Custom Lobby wheel scrolling uses duration-based easing", () => {
   const source = fs.readFileSync(path.join(root, "viewer", "index.html"), "utf8");
-  const match = source.match(/function customLobbyWheelDelta\(event, pageSize\) \{[\s\S]*?\n      \}\n\n      \/\/ Build/);
-  assert.ok(match, "Custom Lobby wheel handler should be present");
-
-  const functions = match[0].replace(/\n\n      \/\/ Build$/, "");
-  const animationFrames = [];
-  const { handleCustomLobbyWheel } = Function(
-    "WheelEvent",
-    "prefersReducedMotion",
-    "requestAnimationFrame",
-    `"use strict"; ${functions}; return { handleCustomLobbyWheel };`
-  )(
-    { DOM_DELTA_LINE: 1, DOM_DELTA_PAGE: 2 },
-    () => false,
-    (callback) => {
-      animationFrames.push(callback);
-      return animationFrames.length;
-    }
-  );
-
-  const host = { clientWidth: 380, scrollWidth: 1000, scrollLeft: 0 };
-  let prevented = false;
-  handleCustomLobbyWheel({
-    ctrlKey: false,
-    deltaMode: 0,
-    deltaY: 120,
-    currentTarget: host,
-    preventDefault() { prevented = true; },
-  });
-
-  assert.equal(host.scrollLeft, 0, "the first frame should not jump directly to the target");
-  assert.equal(prevented, true);
-
-  handleCustomLobbyWheel({
-    ctrlKey: false,
-    deltaMode: 0,
-    deltaY: 80,
-    currentTarget: host,
-    preventDefault() {},
-  });
-  assert.equal(animationFrames.length, 1, "successive wheel input should share one animation");
-
-  let frameCount = 0;
-  while (animationFrames.length && frameCount < 100) {
-    animationFrames.shift()();
-    frameCount += 1;
-  }
-
-  assert.ok(frameCount > 1, "scrolling should ease over several animation frames");
-  assert.equal(host.scrollLeft, 200);
-
-  host.scrollLeft = 620;
-  prevented = false;
-  handleCustomLobbyWheel({
-    ctrlKey: false,
-    deltaMode: 0,
-    deltaY: 120,
-    currentTarget: host,
-    preventDefault() { prevented = true; },
-  });
-
-  assert.equal(host.scrollLeft, 620);
-  assert.equal(prevented, false, "page scrolling should resume at the row edge");
+  assert.match(source, /CUSTOM_LOBBY_SCROLL_DURATION = 220/);
+  assert.match(source, /const progress = Math\.min\(1, \(now - startedAt\) \/ CUSTOM_LOBBY_SCROLL_DURATION\)/);
+  assert.match(source, /const eased = 1 - Math\.pow\(1 - progress, 4\)/);
+  assert.match(source, /cancelAnimationFrame\(scrollState\.frame\)/);
+  assert.match(source, /const atStart = delta < 0 && scrollState\.target <= 0/);
+  assert.match(source, /const atEnd = delta > 0 && scrollState\.target >= maxScroll/);
 });
 
 test("structural updates preserve the visible lobby column position", () => {

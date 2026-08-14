@@ -1361,21 +1361,20 @@
       }
 
       const customLobbyScrollStates = new WeakMap();
-      const CUSTOM_LOBBY_SCROLL_EASE = 0.18;
+      const CUSTOM_LOBBY_SCROLL_DURATION = 220;
 
-      function animateCustomLobbyScroll(host, scrollState) {
-        const maxScroll = Math.max(0, host.scrollWidth - host.clientWidth);
-        scrollState.target = Math.max(0, Math.min(maxScroll, scrollState.target));
-        const remaining = scrollState.target - host.scrollLeft;
+      function animateCustomLobbyScroll(host, scrollState, start, target, startedAt, now) {
+        const progress = Math.min(1, (now - startedAt) / CUSTOM_LOBBY_SCROLL_DURATION);
+        const eased = 1 - Math.pow(1 - progress, 4);
+        host.scrollLeft = start + (target - start) * eased;
 
-        if (Math.abs(remaining) < 0.5) {
-          host.scrollLeft = scrollState.target;
-          scrollState.frame = 0;
+        if (progress < 1) {
+          scrollState.frame = requestAnimationFrame((time) => animateCustomLobbyScroll(host, scrollState, start, target, startedAt, time));
           return;
         }
 
-        host.scrollLeft += remaining * CUSTOM_LOBBY_SCROLL_EASE;
-        scrollState.frame = requestAnimationFrame(() => animateCustomLobbyScroll(host, scrollState));
+        host.scrollLeft = target;
+        scrollState.frame = 0;
       }
 
       function handleCustomLobbyWheel(event) {
@@ -1410,9 +1409,10 @@
           return;
         }
 
-        if (scrollState.frame === 0) {
-          scrollState.frame = requestAnimationFrame(() => animateCustomLobbyScroll(host, scrollState));
-        }
+        cancelAnimationFrame(scrollState.frame);
+        const start = host.scrollLeft;
+        const startedAt = performance.now();
+        scrollState.frame = requestAnimationFrame((time) => animateCustomLobbyScroll(host, scrollState, start, scrollState.target, startedAt, time));
       }
 
       // Build the lobby column shells once. Cards are filled in (and reused)
