@@ -18,6 +18,8 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
   const styles = fs.readFileSync(path.join(output, "styles.css"), "utf8");
 
   assert.match(indexHtml, /id="cardGrid"/);
+  assert.match(indexHtml, /href="https:\/\/discord\.com\/users\/1397288335290138734"/);
+  assert.match(indexHtml, /<span class="discord-name">D_D<\/span>/);
   assert.match(indexHtml, /\{ key: "custom", label: "Custom Lobby" \}/);
   assert.match(indexHtml, /publicType === "hosted"/);
   assert.match(indexHtml, /isCustomLobby\(g\) \? "custom"/);
