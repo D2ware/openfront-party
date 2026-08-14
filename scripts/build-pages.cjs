@@ -4,20 +4,6 @@ const crypto = require("node:crypto");
 
 const root = path.resolve(__dirname, "..");
 const output = path.join(root, "_site");
-const relayInput = process.argv[2] || process.env.PARTY_RELAY_ORIGIN || "";
-
-function relayOrigin(value) {
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error("Set PARTY_RELAY_ORIGIN to the public HTTPS relay origin before building GitHub Pages.");
-  }
-  if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-    throw new Error("PARTY_RELAY_ORIGIN must be an HTTPS origin without credentials, path, query, or fragment.");
-  }
-  return url.origin;
-}
 
 function versionAssets(directory, assets) {
   const digest = crypto.createHash("sha256");
@@ -33,59 +19,28 @@ function versionAssets(directory, assets) {
   return version;
 }
 
-const relay = relayOrigin(relayInput);
 fs.rmSync(output, { recursive: true, force: true });
 fs.mkdirSync(output, { recursive: true });
-for (const directory of ["viewer", "history"]) {
-  fs.cpSync(path.join(root, directory), path.join(output, directory), {
-    recursive: true,
-    filter: (source) => path.basename(source) !== ".git",
-  });
-}
+fs.copyFileSync(path.join(root, "viewer", "index.html"), path.join(output, "index.html"));
+fs.copyFileSync(path.join(root, "viewer", "styles.css"), path.join(output, "styles.css"));
 
-const userscriptSource = fs.readFileSync(path.join(root, "public", "openfront-party-companion.user.js"), "utf8");
-const userscript = userscriptSource.replace(
-  /const DEFAULT_RELAY = "[^"]+";/,
-  `const DEFAULT_RELAY = ${JSON.stringify(relay)};`,
-);
-fs.writeFileSync(path.join(output, "openfront-party-companion.user.js"), userscript);
+const indexPath = path.join(output, "index.html");
+let indexHtml = fs.readFileSync(indexPath, "utf8");
+indexHtml = indexHtml
+  .replace(/\s*<div class="partySelectionBar"[\s\S]*?(?=\s*<div class="panelShell")/, "\n")
+  .replace(/\s*function getPartyFilterPreference\([\s\S]*?(?=\s*function getAlertFilterKey)/, "\n      ")
+  .replace(/\s*window\.dispatchEvent\(new CustomEvent\("openfront:lobbies-rendered",[\s\S]*?\n\s*\}\)\);/, "")
+  .replace(/window\.OPENFRONT_PARTY_OPENFRONT_WINDOW = /g, "")
+  .replace(/openfront-party-game/g, "openfront-lobby");
+fs.writeFileSync(indexPath, indexHtml);
+
+const stylesPath = path.join(output, "styles.css");
+const styles = fs.readFileSync(stylesPath, "utf8")
+  .replace(/\n\/\* Party coordination \*\/[\s\S]*$/, "\n");
+fs.writeFileSync(stylesPath, styles);
 fs.writeFileSync(path.join(output, ".nojekyll"), "");
 
-fs.writeFileSync(
-  path.join(output, "viewer", "config.js"),
-  `window.OPENFRONT_PARTY_CONFIG = Object.freeze(${JSON.stringify({
-    relayOrigin: relay,
-    userscriptPath: "../openfront-party-companion.user.js",
-    historyPath: "../history/",
-  }, null, 2)});\n`,
-);
-fs.writeFileSync(
-  path.join(output, "history", "config.js"),
-  `window.OPENFRONT_TRACKER_CONFIG = Object.freeze(${JSON.stringify({
-    relayOrigin: relay,
-    userscriptPath: "../openfront-party-companion.user.js",
-  }, null, 2)});\n`,
-);
+const version = versionAssets(output, ["styles.css"]);
 
-const viewerVersion = versionAssets(path.join(output, "viewer"), ["styles.css", "config.js", "party.js"]);
-const historyVersion = versionAssets(path.join(output, "history"), ["styles.css", "config.js", "app.js"]);
-
-fs.writeFileSync(
-  path.join(output, "index.html"),
-  `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta http-equiv="refresh" content="0; url=./history/">
-    <title>OpenFront Tracker</title>
-    <script>location.replace(new URL("./history/", location.href));</script>
-  </head>
-  <body><a href="./history/">Open the match tracker</a></body>
-</html>
-`,
-);
-
-console.log(`GitHub Pages artifact created in ${output}`);
-console.log(`Tracker relay: ${relay}`);
-console.log(`Asset versions: viewer ${viewerVersion}, history ${historyVersion}`);
+console.log(`GitHub Pages lobby artifact created in ${output}`);
+console.log(`Asset version: ${version}`);

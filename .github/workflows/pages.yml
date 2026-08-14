@@ -1,4 +1,4 @@
-name: Deploy OpenFront Tracker
+name: Deploy OpenFront Lobbies
 
 on:
   push:

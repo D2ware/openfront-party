@@ -677,7 +677,7 @@ button:active { transform: translateY(1px); }
   width: min(1240px, 100%);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
   align-items: start;
 }
@@ -733,15 +733,24 @@ button:active { transform: translateY(1px); }
 .cardColumn[data-cat="ffa"] .colHeader::before { color: #62b0ff; background: #62b0ff; }
 .cardColumn[data-cat="team"] .colHeader::before { color: #4ade80; background: #4ade80; }
 .cardColumn[data-cat="special"] .colHeader::before { color: #fbbf24; background: #fbbf24; }
+.cardColumn[data-cat="custom"] .colHeader::before { color: #c084fc; background: #c084fc; }
 
 .cardColumn[data-cat="ffa"] .colHeader { border-color: rgba(98, 176, 255, 0.35); }
 .cardColumn[data-cat="team"] .colHeader { border-color: rgba(74, 222, 128, 0.32); }
 .cardColumn[data-cat="special"] .colHeader { border-color: rgba(251, 191, 36, 0.32); }
+.cardColumn[data-cat="custom"] .colHeader { border-color: rgba(192, 132, 252, 0.35); }
 
 .colCards {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
+}
+
+.cardColumn[data-cat="custom"] .colCards {
+  max-height: 602px;
+  overflow-y: auto;
+  padding-right: 4px;
+  overscroll-behavior: contain;
 }
 
 .colEmpty {
@@ -1036,7 +1045,6 @@ body.card-view .panelShell.filters-shown > .panel {
 body.card-view .filtersToggle {
   display: inline-block;
 }
-body.card-view .partyToggle { display:inline-block; }
 
 body.card-view .cardView {
   min-height: calc(100vh - 150px);

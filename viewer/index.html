@@ -19,8 +19,6 @@
 
         <div class="headerActions">
           <button id="toggleFilters" class="filtersToggle" type="button">Filters</button>
-          <button id="partyToggle" class="partyToggle" type="button" aria-expanded="false"><span>Party</span><span id="partyToggleCount" class="partyToggleCount" hidden></span></button>
-          <a id="matchHistoryLink" class="matchHistoryToggle" href="../history/"><span>Match history</span></a>
           <button id="viewToggle" class="viewToggle" type="button">Detailed table</button>
           <button id="alertToggle" class="alertToggle" type="button">Alerts: Off</button>
         </div>
@@ -1337,7 +1335,7 @@
         return t.content.firstElementChild;
       }
 
-      // Build the three empty column shells once. Cards are filled in (and reused)
+      // Build the lobby column shells once. Cards are filled in (and reused)
       // by reconcileColumn — we never blow away the whole grid, so images that are
       // already decoded stay put instead of flashing back to their placeholder.
       function ensureColumns() {
@@ -1786,6 +1784,7 @@
         { key: "ffa", label: "Free For All" },
         { key: "team", label: "Teams" },
         { key: "special", label: "Special" },
+        { key: "custom", label: "Custom Lobby" },
       ];
 
       // Minimum slots shown per column (active game + the next one). Real games
@@ -1801,7 +1800,7 @@
       // a number-only tick patches in place; adding/removing a game rebuilds.
       function structSignature(buckets, sort) {
         const ids = (arr) => arr.map((g) => String(g.id || "")).join(",");
-        return [sort, ids(buckets.ffa), ids(buckets.team), ids(buckets.special)].join("|");
+        return [sort, ...CARD_COLUMNS.map((column) => ids(buckets[column.key]))].join("|");
       }
 
       // Patch only the volatile bits (countdown + player count) on cards already
@@ -1848,11 +1847,11 @@
           renderTable(sorted, serverTime);
           return;
         }
-        // The socket already groups lobbies into ffa / team / special — keep each
-        // game in the column the server assigned it to.
-        const buckets = { ffa: [], team: [], special: [] };
+        // Scheduled lobbies retain their server-assigned category. Lobbies without
+        // a start time are user-created/open lobbies, so group them separately.
+        const buckets = Object.fromEntries(CARD_COLUMNS.map((column) => [column.key, []]));
         for (const g of sorted) {
-          const cat = g.raw?.__rawType || g.raw?.publicGameType;
+          const cat = g.startsAt === null ? "custom" : (g.raw?.__rawType || g.raw?.publicGameType);
           if (buckets[cat]) buckets[cat].push(g);
         }
 
@@ -2668,7 +2667,5 @@
       updateAlertToggleUI();
       connect();
     </script>
-    <script src="config.js"></script>
-    <script src="party.js"></script>
   </body>
 </html>
