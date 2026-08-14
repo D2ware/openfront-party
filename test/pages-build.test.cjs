@@ -35,6 +35,12 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
   assert.doesNotMatch(indexHtml, /class="gameCardSettings"/);
   assert.match(indexHtml, /Disabled Units:/);
   assert.match(indexHtml, /Host: Infinite Gold/);
+  assert.match(indexHtml, /PVP Immunity Duration:/);
+  assert.match(indexHtml, /function formatPvpImmunityDuration\(seconds\)/);
+  assert.match(indexHtml, /`\$\{minutes\}min`/);
+  assert.doesNotMatch(indexHtml, /Spawn Immunity:/);
+  assert.doesNotMatch(indexHtml, /Start Delay:/);
+  assert.doesNotMatch(indexHtml, /push\("Nations Disabled"\)/);
   assert.match(indexHtml, /href="styles\.css\?v=[a-f0-9]{12}"/);
   assert.match(styles, /data-cat="custom"/);
   assert.match(styles, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
@@ -48,6 +54,10 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
   assert.match(indexHtml, /function handleCustomLobbyWheel\(event\)/);
   assert.match(indexHtml, /addEventListener\("wheel", handleCustomLobbyWheel, \{ passive: false \}\)/);
   assert.match(indexHtml, /host\.scrollLeft = Math\.max\(0, Math\.min\(maxScroll, host\.scrollLeft \+ delta\)\)/);
+  assert.match(indexHtml, /function captureViewportAnchor\(\)/);
+  assert.match(indexHtml, /function restoreViewportAnchor\(anchor\)/);
+  assert.match(indexHtml, /window\.scrollBy\(0, offset\)/);
+  assert.match(indexHtml, /restoreViewportAnchor\(viewportAnchor\);[\s\S]*if \(prevRects\) flipCards\(prevRects\)/);
   assert.match(styles, /\.cardBadge\.danger/);
   assert.doesNotMatch(indexHtml, /party|companion/i);
   assert.doesNotMatch(styles, /party|companion/i);
@@ -125,4 +135,47 @@ test("mouse wheel scrolls the Custom Lobby row horizontally", () => {
 
   assert.equal(host.scrollLeft, 620);
   assert.equal(prevented, false, "page scrolling should resume at the row edge");
+});
+
+test("structural updates preserve the visible lobby column position", () => {
+  const source = fs.readFileSync(path.join(root, "viewer", "index.html"), "utf8");
+  const start = source.indexOf("function captureViewportAnchor()");
+  const end = source.indexOf("function applyStructure(", start);
+  assert.ok(start >= 0 && end > start, "viewport anchor helpers should be present");
+
+  let targetTop = 100;
+  const target = {
+    isConnected: true,
+    getBoundingClientRect() {
+      return { top: targetTop, bottom: targetTop + 500 };
+    },
+  };
+  const elements = [
+    { getBoundingClientRect: () => ({ top: -500, bottom: -10 }) },
+    target,
+    { getBoundingClientRect: () => ({ top: 700, bottom: 1200 }) },
+  ];
+  const scrollCalls = [];
+  const fakeWindow = {
+    innerHeight: 800,
+    scrollBy(x, y) { scrollCalls.push([x, y]); },
+  };
+  const helpers = Function(
+    "els",
+    "window",
+    "document",
+    `"use strict"; ${source.slice(start, end)}; return { captureViewportAnchor, restoreViewportAnchor };`
+  )(
+    { cardGrid: { querySelectorAll: () => elements } },
+    fakeWindow,
+    { documentElement: { clientHeight: 800 } }
+  );
+
+  const anchor = helpers.captureViewportAnchor();
+  assert.equal(anchor.element, target);
+  assert.equal(anchor.top, 100);
+
+  targetTop = 260;
+  helpers.restoreViewportAnchor(anchor);
+  assert.deepEqual(scrollCalls, [[0, 160]]);
 });
