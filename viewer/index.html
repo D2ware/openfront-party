@@ -1380,7 +1380,8 @@
       function handleCustomLobbyWheel(event) {
         if (event.ctrlKey || event.deltaY === 0) return;
 
-        const host = event.currentTarget;
+        const host = event.currentTarget.querySelector('.colCards[data-col-cards="custom"]');
+        if (!host) return;
         const maxScroll = Math.max(0, host.scrollWidth - host.clientWidth);
         if (maxScroll === 0) return;
 
@@ -1424,8 +1425,8 @@
           </section>
         `).join("");
 
-        const customLobbyRow = els.cardGrid.querySelector('.colCards[data-col-cards="custom"]');
-        customLobbyRow?.addEventListener("wheel", handleCustomLobbyWheel, { passive: false });
+        const customLobbyColumn = els.cardGrid.querySelector('.cardColumn[data-cat="custom"]');
+        customLobbyColumn?.addEventListener("wheel", handleCustomLobbyWheel, { passive: false });
       }
 
       // Reconcile one column's cards against the desired game list, keyed by id:

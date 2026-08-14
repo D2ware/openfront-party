@@ -52,7 +52,7 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
   assert.doesNotMatch(styles, /max-height: 602px/);
   assert.match(indexHtml, /col\.key === "custom" \? 0 : COLUMN_MIN_SLOTS/);
   assert.match(indexHtml, /function handleCustomLobbyWheel\(event\)/);
-  assert.match(indexHtml, /addEventListener\("wheel", handleCustomLobbyWheel, \{ passive: false \}\)/);
+  assert.match(indexHtml, /customLobbyColumn\?\.addEventListener\("wheel", handleCustomLobbyWheel, \{ passive: false \}\)/);
   assert.match(indexHtml, /function animateCustomLobbyScroll\(host, scrollState, start, target, startedAt, now\)/);
   assert.match(indexHtml, /CUSTOM_LOBBY_SCROLL_DURATION = 220/);
   assert.match(indexHtml, /const eased = 1 - Math\.pow\(1 - progress, 4\)/);
@@ -118,6 +118,8 @@ test("Custom Lobby wheel scrolling uses duration-based easing", () => {
   assert.match(source, /const progress = Math\.min\(1, \(now - startedAt\) \/ CUSTOM_LOBBY_SCROLL_DURATION\)/);
   assert.match(source, /const eased = 1 - Math\.pow\(1 - progress, 4\)/);
   assert.match(source, /cancelAnimationFrame\(scrollState\.frame\)/);
+  assert.match(source, /const host = event\.currentTarget\.querySelector\('\.colCards\[data-col-cards="custom"\]'\)/);
+  assert.match(source, /const customLobbyColumn = els\.cardGrid\.querySelector\('\.cardColumn\[data-cat="custom"\]'\)/);
   assert.match(source, /event\.preventDefault\(\);\n        const nextTarget/);
   assert.match(source, /if \(nextTarget === scrollState\.target\) return/);
   assert.doesNotMatch(source, /const atStart = delta < 0/);
