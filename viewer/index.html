@@ -1393,15 +1393,12 @@
           scrollState.target = host.scrollLeft;
         }
 
-        const nextTarget = Math.max(0, Math.min(maxScroll, scrollState.target + delta));
-        const atStart = delta < 0 && scrollState.target <= 0;
-        const atEnd = delta > 0 && scrollState.target >= maxScroll;
-
-        // Consume the wheel only while the row can move in that direction. At
-        // either edge the event remains available for normal page scrolling.
-        if (atStart || atEnd || nextTarget === scrollState.target) return;
-
+        // Hovering this row reserves the wheel for horizontal navigation. Keep
+        // consuming it at both ends so the page never starts moving vertically
+        // while the pointer is still over Custom Lobby.
         event.preventDefault();
+        const nextTarget = Math.max(0, Math.min(maxScroll, scrollState.target + delta));
+        if (nextTarget === scrollState.target) return;
         scrollState.target = nextTarget;
 
         if (prefersReducedMotion()) {
@@ -1483,7 +1480,7 @@
 
       function captureCardRects() {
         const rects = new Map();
-        els.cardGrid.querySelectorAll(".gameCard[data-game-id]").forEach((card) => {
+        els.cardGrid.querySelectorAll('.cardColumn:not([data-cat="custom"]) .gameCard[data-game-id]').forEach((card) => {
           rects.set(card.dataset.gameId, card.getBoundingClientRect());
         });
         return rects;
@@ -1731,6 +1728,14 @@
           }[sort] || ((a, b) => (b.joined ?? 0) - (a.joined ?? 0));
       
         return games.slice().sort(cmp);
+      }
+
+      function sortCustomLobbiesByPlayers(games) {
+        return games.slice().sort((a, b) => {
+          const playerDifference = (b.joined ?? 0) - (a.joined ?? 0);
+          if (playerDifference !== 0) return playerDifference;
+          return String(a.id ?? "").localeCompare(String(b.id ?? ""));
+        });
       }
       
       function formatDuration(s) {
@@ -2163,6 +2168,7 @@
           const cat = isCustomLobby(g) ? "custom" : (g.raw?.__rawType || g.raw?.publicGameType);
           if (buckets[cat]) buckets[cat].push(g);
         }
+        buckets.custom = sortCustomLobbiesByPlayers(buckets.custom);
         refreshCustomLobbyCards(buckets.custom);
 
         // Structure = which game ids live in which column. Only that changing

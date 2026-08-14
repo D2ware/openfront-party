@@ -58,6 +58,8 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
   assert.match(indexHtml, /const eased = 1 - Math\.pow\(1 - progress, 4\)/);
   assert.match(indexHtml, /cancelAnimationFrame\(scrollState\.frame\)/);
   assert.match(indexHtml, /requestAnimationFrame\(\(time\) => animateCustomLobbyScroll\(host, scrollState, start, scrollState\.target, startedAt, time\)\)/);
+  assert.match(indexHtml, /function sortCustomLobbiesByPlayers\(games\)/);
+  assert.match(indexHtml, /buckets\.custom = sortCustomLobbiesByPlayers\(buckets\.custom\)/);
   assert.match(indexHtml, /function captureViewportAnchor\(\)/);
   assert.match(indexHtml, /function restoreViewportAnchor\(anchor\)/);
   assert.match(indexHtml, /window\.scrollBy\(0, offset\)/);
@@ -116,8 +118,27 @@ test("Custom Lobby wheel scrolling uses duration-based easing", () => {
   assert.match(source, /const progress = Math\.min\(1, \(now - startedAt\) \/ CUSTOM_LOBBY_SCROLL_DURATION\)/);
   assert.match(source, /const eased = 1 - Math\.pow\(1 - progress, 4\)/);
   assert.match(source, /cancelAnimationFrame\(scrollState\.frame\)/);
-  assert.match(source, /const atStart = delta < 0 && scrollState\.target <= 0/);
-  assert.match(source, /const atEnd = delta > 0 && scrollState\.target >= maxScroll/);
+  assert.match(source, /event\.preventDefault\(\);\n        const nextTarget/);
+  assert.match(source, /if \(nextTarget === scrollState\.target\) return/);
+  assert.doesNotMatch(source, /const atStart = delta < 0/);
+  assert.doesNotMatch(source, /const atEnd = delta > 0/);
+});
+
+test("Custom Lobby cards stay ordered by player count with stable ties", () => {
+  const source = fs.readFileSync(path.join(root, "viewer", "index.html"), "utf8");
+  const match = source.match(/function sortCustomLobbiesByPlayers\(games\) \{[\s\S]*?\n      \}/);
+  assert.ok(match, "Custom Lobby player-count sorter should be present");
+
+  const sortCustomLobbiesByPlayers = Function(`"use strict"; return (${match[0]});`)();
+  const games = [
+    { id: "z-last", joined: 1 },
+    { id: "b-tie", joined: 8 },
+    { id: "a-tie", joined: 8 },
+    { id: "top", joined: 12 },
+  ];
+
+  assert.deepEqual(sortCustomLobbiesByPlayers(games).map((game) => game.id), ["top", "a-tie", "b-tie", "z-last"]);
+  assert.deepEqual(games.map((game) => game.id), ["z-last", "b-tie", "a-tie", "top"], "sorting does not mutate source data");
 });
 
 test("structural updates preserve the visible lobby column position", () => {
