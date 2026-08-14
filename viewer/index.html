@@ -29,18 +29,28 @@
         </div>
 
         <div class="discordGroup">
-          <a class="discord-btn" href="https://discord.com/users/622431947339202561" target="_blank" rel="noreferrer" aria-label="Kale on Discord">
-            <img class="discord-icon" src="https://cdn.simpleicons.org/discord/white" alt="" />
-            <span class="discord-name">Kale</span>
-          </a>
-          <a class="discord-btn" href="https://discord.com/users/422545450919526411" target="_blank" rel="noreferrer" aria-label="Wonder on Discord">
-            <img class="discord-icon" src="https://cdn.simpleicons.org/discord/white" alt="" />
-            <span class="discord-name">Wonder</span>
-          </a>
-          <a class="discord-btn" href="https://discord.com/users/1397288335290138734" target="_blank" rel="noreferrer" aria-label="D_D on Discord">
-            <img class="discord-icon" src="https://cdn.simpleicons.org/discord/white" alt="" />
-            <span class="discord-name">D_D</span>
-          </a>
+          <div class="discordRoleGroup" aria-label="Original Gangsters">
+            <span class="discordRoleLabel">Original Gangsters</span>
+            <div class="discordRoleButtons">
+              <a class="discord-btn" href="https://discord.com/users/622431947339202561" target="_blank" rel="noreferrer" aria-label="Kale on Discord">
+                <img class="discord-icon" src="https://cdn.simpleicons.org/discord/white" alt="" />
+                <span class="discord-name">Kale</span>
+              </a>
+              <a class="discord-btn" href="https://discord.com/users/422545450919526411" target="_blank" rel="noreferrer" aria-label="Wonder on Discord">
+                <img class="discord-icon" src="https://cdn.simpleicons.org/discord/white" alt="" />
+                <span class="discord-name">Wonder</span>
+              </a>
+            </div>
+          </div>
+          <div class="discordRoleGroup" aria-label="Site Host">
+            <span class="discordRoleLabel">Site Host</span>
+            <div class="discordRoleButtons">
+              <a class="discord-btn" href="https://discord.com/users/1397288335290138734" target="_blank" rel="noreferrer" aria-label="D_D on Discord">
+                <img class="discord-icon" src="https://cdn.simpleicons.org/discord/white" alt="" />
+                <span class="discord-name">D_D</span>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </header>
@@ -1676,7 +1686,7 @@
 
       function isCustomLobby(g) {
         const publicType = String(g?.raw?.__rawType ?? g?.raw?.publicGameType ?? "").toLowerCase();
-        return publicType === "hosted" || g?.startsAt === null;
+        return publicType === "hosted";
       }
 
       function prettySettingValue(value) {
@@ -1686,13 +1696,39 @@
           .replace(/\b\w/g, (letter) => letter.toUpperCase());
       }
       
-      // All active modifiers for a game as pretty labels. Labels mirror OpenFront's
-      // own getActiveModifiers() (src/client/Utils.ts) so they match the in-game
-      // lobby badges. Each flag is read from publicGameModifiers, with a fallback to
-      // the raw gameConfig (map size, disabledUnits, top-level waterNukes) so a tag
-      // still shows however the lobby encodes it. Team format is omitted (the mode
-      // line already conveys it).
-      function gameModifierDetails(g) {
+      // Keep the original public-game badge set for the scheduled FFA, Teams and
+      // Special columns. This deliberately mirrors the Minhkarl board instead of
+      // exposing every gameConfig field on those cards.
+      function standardGameModifierDetails(g) {
+        const pm = g.pm || {};
+        const cfg = g.cfg || {};
+        const disabled = Array.isArray(cfg.disabledUnits) ? cfg.disabledUnits : [];
+        const labels = [];
+
+        const startingGold = getNumber(g.raw, "startingGold");
+        if (Number.isFinite(startingGold) && startingGold > 0) labels.push(`${compactNumber(startingGold)} Starting Gold`);
+
+        const goldMultiplier = getNumber(g.raw, "goldMultiplier");
+        if (Number.isFinite(goldMultiplier) && goldMultiplier !== 1) labels.push(`${goldMultiplier}× Gold`);
+
+        if (pm.isRandomSpawn === true || cfg.randomSpawn === true) labels.push("Random Spawn");
+        if (pm.isCompact === true || cfg.gameMapSize === "Compact") labels.push("Compact Map");
+        if (pm.isCrowded === true) labels.push("Crowded");
+        if (pm.isHardNations === true) labels.push("Hard Nations");
+        if (pm.isAlliancesDisabled === true || cfg.disableAlliances === true) labels.push("Alliances Disabled");
+        if (pm.isPortsDisabled === true || disabled.includes("Port")) labels.push("Ports Disabled");
+        if (pm.isNukesDisabled === true || disabled.includes("Atom Bomb")) labels.push("Nukes Disabled");
+        if (pm.isSAMsDisabled === true) labels.push("SAMs Disabled");
+        if (pm.isPeaceTime === true) labels.push("4min Peace");
+        if (pm.isWaterNukes === true || cfg.waterNukes === true) labels.push("Water Nukes");
+
+        return labels.map((label) => ({ label, tone: "", title: "" }));
+      }
+
+      // Hosted lobbies expose the complete player-selected configuration. Read
+      // both publicGameModifiers and raw gameConfig so every supported variation
+      // can be represented without changing the server payload.
+      function customGameModifierDetails(g) {
         const pm = g.pm || {};
         const cfg = g.cfg || {};
         const disabled = Array.isArray(cfg.disabledUnits) ? cfg.disabledUnits : [];
@@ -1781,6 +1817,12 @@
         }
 
         return details;
+      }
+
+      function gameModifierDetails(g) {
+        return isCustomLobby(g)
+          ? customGameModifierDetails(g)
+          : standardGameModifierDetails(g);
       }
 
       function gameModifierLabels(g) {
@@ -1939,7 +1981,8 @@
           return;
         }
         // OpenFront publishes player-created lobbies in the "hosted" bucket.
-        // Keep the missing-start-time fallback for older feed payloads.
+        // startsAt only controls the Open/countdown label; it never changes the
+        // server-provided FFA, Teams, Special or hosted category.
         const buckets = Object.fromEntries(CARD_COLUMNS.map((column) => [column.key, []]));
         for (const g of sorted) {
           const cat = isCustomLobby(g) ? "custom" : (g.raw?.__rawType || g.raw?.publicGameType);

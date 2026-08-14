@@ -618,6 +618,32 @@ button:active { transform: translateY(1px); }
 .discordGroup {
   display: flex;
   flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.discordRoleGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.discordRoleLabel {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.discordRoleButtons {
+  display: flex;
+  align-items: stretch;
   gap: 8px;
 }
 
@@ -1104,6 +1130,12 @@ body.card-view .discord-btn {
 }
 
 @media (max-width: 560px) {
+  .discordGroup {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
   .colCards {
     grid-template-columns: 1fr;
   }
