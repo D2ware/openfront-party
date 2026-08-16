@@ -1095,9 +1095,14 @@
         else if (compactTeam === "humansvsnations") format = "HumansVsNations";
       
         const gameMode = String(cfg.gameMode ?? "").trim().toLowerCase();
-        const kind = teamCount && teamCount > 1
-          ? "team"
-          : (format || gameMode === "team" || gameMode === "teams" || g.__rawType === "team" ? "team" : "ffa");
+        const isExplicitFfa = gameMode === "ffa" || gameMode === "freeforall" || gameMode === "free for all";
+        const isExplicitTeamMode = gameMode === "team" || gameMode === "teams";
+        // A hosted lobby can retain playerTeams from an earlier Teams selection.
+        // gameMode is authoritative: an explicit FFA must not be advertised as a
+        // team game merely because that stale field has a numeric value.
+        const kind = isExplicitFfa
+          ? "ffa"
+          : (isExplicitTeamMode || teamCount && teamCount > 1 || format || g.__rawType === "team" ? "team" : "ffa");
       
         return {
           raw: g,
@@ -1113,7 +1118,7 @@
             format === "Duos" ? 2 :
             format === "Trios" ? 3 :
             format === "Quads" ? 4 :
-            (typeof teamCount === "number" && maxPlayers !== null && teamCount > 0 ? maxPlayers / teamCount : null),
+            (kind === "team" && typeof teamCount === "number" && maxPlayers !== null && teamCount > 0 ? maxPlayers / teamCount : null),
           format,
           startsAt: g?.startsAt ?? null,
         };
@@ -1682,6 +1687,7 @@
       }
       function matchTeamsFilter(g, teamFilters) {
         if (!teamFilters || teamFilters.length === 0) return true;
+        if (g.kind !== "team") return false;
 
         const teams = g.teamCount ?? g.raw?.gameConfig?.playerTeams ?? null;
         if (teams === null && !g.format) return false;
@@ -1812,6 +1818,8 @@
         return "Team";
       }
       function tableTypeText(game) {
+        if (game.kind === "ffa") return "Free For All";
+
         if (
           typeof game.teamCount === "number" &&
           Number.isFinite(game.teamCount) &&

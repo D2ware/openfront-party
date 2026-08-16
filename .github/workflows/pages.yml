@@ -50,3 +50,51 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  # The board also lives at the root of d2ware.github.io, which is its own
+  # repository. Rebuild the same artifact and push it there so that site never
+  # drifts behind this one. Needs USER_SITE_TOKEN (a PAT with content write
+  # access to the site repository); without it the job just says so and stops.
+  mirror:
+    name: Mirror to the user site
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build static Pages artifact
+        env:
+          PARTY_RELAY_ORIGIN: ${{ vars.PARTY_RELAY_ORIGIN }}
+        run: npm run build:pages
+      - name: Push the build to the user site
+        env:
+          USER_SITE_TOKEN: ${{ secrets.USER_SITE_TOKEN }}
+          USER_SITE_REPO: ${{ vars.USER_SITE_REPO || 'D2ware/D2ware.github.io' }}
+        run: |
+          if [ -z "$USER_SITE_TOKEN" ]; then
+            echo "USER_SITE_TOKEN is not set — skipping the ${USER_SITE_REPO} mirror."
+            exit 0
+          fi
+
+          git clone --depth 1 "https://x-access-token:${USER_SITE_TOKEN}@github.com/${USER_SITE_REPO}.git" user-site
+          find user-site -mindepth 1 -maxdepth 1 -not -name .git -exec rm -rf {} +
+          cp -R _site/. user-site/
+          touch user-site/.nojekyll
+
+          cd user-site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "The user site is already up to date."
+            exit 0
+          fi
+          git commit -m "Publish ${GITHUB_REPOSITORY}@${GITHUB_SHA:0:7}: $(git -C .. log -1 --pretty=%s)"
+          git push
