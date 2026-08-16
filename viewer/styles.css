@@ -784,11 +784,19 @@ button:active { transform: translateY(1px); }
   overflow-y: hidden;
   padding-bottom: 6px;
   overscroll-behavior-inline: contain;
-  scroll-snap-type: inline proximity;
 }
 
 .cardColumn[data-cat="custom"] .gameCard {
   scroll-snap-align: start;
+}
+
+/* Snapping only where the row is dragged by finger. On a mouse the wheel drives
+   the row through an animation of our own, and proximity snapping fights it
+   frame by frame. */
+@media (hover: none) and (pointer: coarse) {
+  .cardColumn[data-cat="custom"] .colCards {
+    scroll-snap-type: inline proximity;
+  }
 }
 
 .colEmpty {
