@@ -52,7 +52,8 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
   assert.doesNotMatch(styles, /max-height: 602px/);
   assert.match(indexHtml, /col\.key === "custom" \? 0 : COLUMN_MIN_SLOTS/);
   assert.match(indexHtml, /function handleCustomLobbyWheel\(event\)/);
-  assert.match(indexHtml, /customLobbyColumn\?\.addEventListener\("wheel", handleCustomLobbyWheel, \{ passive: false \}\)/);
+  assert.match(indexHtml, /els\.cardGrid\.addEventListener\("wheel", handleCustomLobbyWheel, \{ passive: false \}\)/);
+  assert.match(indexHtml, /CUSTOM_LOBBY_GESTURE_HOLD_MS = 220/);
   assert.match(indexHtml, /function animateCustomLobbyScroll\(host, scrollState, start, target, startedAt, now\)/);
   assert.match(indexHtml, /CUSTOM_LOBBY_SCROLL_DURATION = 220/);
   assert.match(indexHtml, /const eased = 1 - Math\.pow\(1 - progress, 4\)/);
@@ -118,12 +119,141 @@ test("Custom Lobby wheel scrolling uses duration-based easing", () => {
   assert.match(source, /const progress = Math\.min\(1, \(now - startedAt\) \/ CUSTOM_LOBBY_SCROLL_DURATION\)/);
   assert.match(source, /const eased = 1 - Math\.pow\(1 - progress, 4\)/);
   assert.match(source, /cancelAnimationFrame\(scrollState\.frame\)/);
-  assert.match(source, /const host = event\.currentTarget\.querySelector\('\.colCards\[data-col-cards="custom"\]'\)/);
-  assert.match(source, /const customLobbyColumn = els\.cardGrid\.querySelector\('\.cardColumn\[data-cat="custom"\]'\)/);
-  assert.match(source, /event\.preventDefault\(\);\n        const nextTarget/);
-  assert.match(source, /if \(nextTarget === scrollState\.target\) return/);
+  assert.match(source, /els\.cardGrid\.addEventListener\("wheel", handleCustomLobbyWheel, \{ passive: false \}\)/);
   assert.doesNotMatch(source, /const atStart = delta < 0/);
   assert.doesNotMatch(source, /const atEnd = delta > 0/);
+});
+
+// Runs the viewer's own wheel helpers against a stand-in row, so the handover
+// rules between the row and the page are exercised instead of pattern-matched.
+function customLobbyWheelHarness({ scrollWidth = 3000, clientWidth = 1000, insideRow = true } = {}) {
+  const source = fs.readFileSync(path.join(root, "viewer", "index.html"), "utf8");
+  const start = source.indexOf("function customLobbyWheelDelta(");
+  const end = source.indexOf("// Build the lobby column shells once.");
+  assert.ok(start >= 0 && end > start, "Custom Lobby wheel helpers should be present");
+
+  class Element {}
+  const sandbox = Function(
+    "WheelEvent",
+    "Element",
+    "prefersReducedMotion",
+    "requestAnimationFrame",
+    "cancelAnimationFrame",
+    `"use strict";
+     ${source.slice(start, end)}
+     return { handleCustomLobbyWheel, CUSTOM_LOBBY_GESTURE_HOLD_MS };`,
+  )(
+    { DOM_DELTA_LINE: 1, DOM_DELTA_PAGE: 2 },
+    Element,
+    () => true,                                   // reduced motion: land on the target at once
+    () => 0,
+    () => {},
+  );
+
+  const host = { scrollWidth, clientWidth, scrollLeft: 0 };
+  const column = { querySelector: () => host };
+  const target = Object.assign(Object.create(Element.prototype), {
+    closest: () => (insideRow ? column : null),
+  });
+
+  return {
+    host,
+    holdMs: sandbox.CUSTOM_LOBBY_GESTURE_HOLD_MS,
+    wheel(deltaY, extra = {}) {
+      const event = {
+        deltaY,
+        deltaX: 0,
+        deltaMode: 0,
+        ctrlKey: false,
+        timeStamp: 0,
+        target,
+        prevented: false,
+        preventDefault() { this.prevented = true; },
+        ...extra,
+      };
+      sandbox.handleCustomLobbyWheel(event);
+      return event;
+    },
+  };
+}
+
+test("wheel over a sideways Custom Lobby row scrolls the row instead of the page", () => {
+  const row = customLobbyWheelHarness();
+
+  const first = row.wheel(100, { timeStamp: 0 });
+  assert.equal(first.prevented, true, "the row takes the wheel over");
+  assert.equal(row.host.scrollLeft, 100);
+
+  const second = row.wheel(100, { timeStamp: 40 });
+  assert.equal(second.prevented, true);
+  assert.equal(row.host.scrollLeft, 200, "deltas accumulate along the row");
+
+  const back = row.wheel(-50, { timeStamp: 80 });
+  assert.equal(back.prevented, true);
+  assert.equal(row.host.scrollLeft, 150, "wheeling up walks the row back");
+});
+
+test("Custom Lobby hands the wheel back to the page at both ends of the row", () => {
+  const row = customLobbyWheelHarness();
+
+  assert.equal(row.wheel(-100, { timeStamp: 0 }).prevented, false, "already parked at the start");
+  assert.equal(row.host.scrollLeft, 0);
+
+  row.host.scrollLeft = 2000;                     // parked against the end
+  assert.equal(row.wheel(100, { timeStamp: 500 }).prevented, false, "already parked at the end");
+  assert.equal(row.host.scrollLeft, 2000);
+});
+
+test("a flick that lands on the end of the Custom Lobby row keeps its grip", () => {
+  const row = customLobbyWheelHarness();
+
+  row.host.scrollLeft = 0;
+  assert.equal(row.wheel(1900, { timeStamp: 1000 }).prevented, true);
+  assert.equal(row.host.scrollLeft, 1900);
+
+  assert.equal(row.wheel(400, { timeStamp: 1030 }).prevented, true, "the flick lands on the end, not on the page");
+  assert.equal(row.host.scrollLeft, 2000, "the row stops at its end");
+
+  assert.equal(
+    row.wheel(400, { timeStamp: 1040 + row.holdMs }).prevented,
+    false,
+    "once the flick is over the page scrolls again",
+  );
+});
+
+test("Custom Lobby leaves gestures it has no business taking", () => {
+  const fits = customLobbyWheelHarness({ scrollWidth: 900 });
+  assert.equal(fits.wheel(100).prevented, false, "a row that fits never takes the wheel");
+
+  const row = customLobbyWheelHarness();
+  assert.equal(row.wheel(100, { ctrlKey: true }).prevented, false, "pinch-to-zoom stays a zoom");
+  assert.equal(row.wheel(20, { deltaX: -90 }).prevented, false, "a sideways trackpad swipe scrolls natively");
+  assert.equal(row.wheel(0).prevented, false, "no vertical delta, nothing to convert");
+  assert.equal(row.host.scrollLeft, 0);
+
+  const outside = customLobbyWheelHarness({ insideRow: false });
+  assert.equal(outside.wheel(100).prevented, false, "wheeling over the other columns scrolls the page");
+});
+
+test("Custom Lobby re-aims after the row is scrolled by other means", () => {
+  const row = customLobbyWheelHarness();
+
+  assert.equal(row.wheel(300, { timeStamp: 0 }).prevented, true);
+  assert.equal(row.host.scrollLeft, 300);
+
+  row.host.scrollLeft = 1200;                     // scrollbar drag / touch swipe
+  row.wheel(100, { timeStamp: 60 });
+  assert.equal(row.host.scrollLeft, 1300, "the next wheel continues from where the row actually sits");
+});
+
+test("Custom Lobby wheel deltas respect the browser's delta mode", () => {
+  const lines = customLobbyWheelHarness();
+  lines.wheel(3, { deltaMode: 1 });
+  assert.equal(lines.host.scrollLeft, 48, "line deltas are scaled to pixels");
+
+  const pages = customLobbyWheelHarness();
+  pages.wheel(1, { deltaMode: 2 });
+  assert.equal(pages.host.scrollLeft, 1000, "page deltas move one row width");
 });
 
 test("Custom Lobby cards stay ordered by player count with stable ties", () => {

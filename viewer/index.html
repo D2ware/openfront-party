@@ -930,6 +930,9 @@
         };
 
         els.cardGrid.addEventListener("click", openCard);
+        // Delegated so the row keeps its wheel handling across every rebuild of
+        // the columns.
+        els.cardGrid.addEventListener("wheel", handleCustomLobbyWheel, { passive: false });
         els.cardGrid.addEventListener("keydown", (e) => {
           if (e.key !== "Enter" && e.key !== " ") return;
           if (!e.target.closest(".gameCard[data-join-url]")) return;
@@ -1362,11 +1365,17 @@
 
       const customLobbyScrollStates = new WeakMap();
       const CUSTOM_LOBBY_SCROLL_DURATION = 220;
+      // One flick of the wheel keeps its grip on the row until the pointer goes
+      // quiet for this long. Long enough that landing on an end mid-flick never
+      // punts the tail of the gesture at the page, short enough that the very
+      // next flick scrolls the page instead of dying against the end.
+      const CUSTOM_LOBBY_GESTURE_HOLD_MS = 220;
 
       function animateCustomLobbyScroll(host, scrollState, start, target, startedAt, now) {
         const progress = Math.min(1, (now - startedAt) / CUSTOM_LOBBY_SCROLL_DURATION);
         const eased = 1 - Math.pow(1 - progress, 4);
         host.scrollLeft = start + (target - start) * eased;
+        scrollState.applied = host.scrollLeft;
 
         if (progress < 1) {
           scrollState.frame = requestAnimationFrame((time) => animateCustomLobbyScroll(host, scrollState, start, target, startedAt, time));
@@ -1374,40 +1383,71 @@
         }
 
         host.scrollLeft = target;
+        scrollState.applied = host.scrollLeft;
         scrollState.frame = 0;
       }
 
-      function handleCustomLobbyWheel(event) {
-        if (event.ctrlKey || event.deltaY === 0) return;
-
-        const host = event.currentTarget.querySelector('.colCards[data-col-cards="custom"]');
-        if (!host) return;
-        const maxScroll = Math.max(0, host.scrollWidth - host.clientWidth);
-        if (maxScroll === 0) return;
-
-        const delta = customLobbyWheelDelta(event, host.clientWidth);
+      // Where the row should be aimed right now. Anything that moved it behind
+      // our back — a scrollbar drag, a touch swipe, cards being re-rendered —
+      // wins, so we always animate on from where the row actually sits.
+      function customLobbyScrollState(host) {
         let scrollState = customLobbyScrollStates.get(host);
         if (!scrollState) {
-          scrollState = { target: host.scrollLeft, frame: 0 };
+          scrollState = { target: host.scrollLeft, applied: host.scrollLeft, frame: 0, movedAt: -Infinity };
           customLobbyScrollStates.set(host, scrollState);
-        } else if (scrollState.frame === 0) {
-          scrollState.target = host.scrollLeft;
+          return scrollState;
         }
 
-        // Hovering this row reserves the wheel for horizontal navigation. Keep
-        // consuming it at both ends so the page never starts moving vertically
-        // while the pointer is still over Custom Lobby.
-        event.preventDefault();
-        const nextTarget = Math.max(0, Math.min(maxScroll, scrollState.target + delta));
-        if (nextTarget === scrollState.target) return;
-        scrollState.target = nextTarget;
+        if (Math.abs(host.scrollLeft - scrollState.applied) > 1) {
+          if (scrollState.frame) cancelAnimationFrame(scrollState.frame);
+          scrollState.frame = 0;
+          scrollState.target = host.scrollLeft;
+          scrollState.applied = host.scrollLeft;
+        }
+        return scrollState;
+      }
 
-        if (prefersReducedMotion()) {
-          host.scrollLeft = scrollState.target;
+      // Custom Lobby grows sideways instead of downwards, so while the pointer
+      // is over it the wheel drives that rail. The page keeps its scroll back
+      // as soon as the rail is parked against the end the wheel is pushing at.
+      function handleCustomLobbyWheel(event) {
+        if (event.ctrlKey) return;                                        // pinch-to-zoom
+        if (event.deltaY === 0) return;
+        if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;      // already a sideways gesture
+
+        const column = event.target instanceof Element
+          ? event.target.closest('.cardColumn[data-cat="custom"]')
+          : null;
+        if (!column) return;
+
+        const host = column.querySelector('.colCards[data-col-cards="custom"]');
+        if (!host) return;
+        const maxScroll = Math.max(0, host.scrollWidth - host.clientWidth);
+        if (maxScroll === 0) return;                                      // row fits: nothing to take over
+
+        const scrollState = customLobbyScrollState(host);
+        const delta = customLobbyWheelDelta(event, host.clientWidth);
+        const nextTarget = Math.max(0, Math.min(maxScroll, scrollState.target + delta));
+        const now = typeof event.timeStamp === "number" ? event.timeStamp : performance.now();
+
+        if (nextTarget === scrollState.target) {
+          // Parked against this end. Swallow the rest of the flick that got us
+          // here, then hand the wheel back so the pointer never traps the page.
+          if (now - scrollState.movedAt <= CUSTOM_LOBBY_GESTURE_HOLD_MS) event.preventDefault();
           return;
         }
 
-        cancelAnimationFrame(scrollState.frame);
+        event.preventDefault();
+        scrollState.target = nextTarget;
+        scrollState.movedAt = now;
+
+        if (prefersReducedMotion()) {
+          host.scrollLeft = scrollState.target;
+          scrollState.applied = host.scrollLeft;
+          return;
+        }
+
+        if (scrollState.frame) cancelAnimationFrame(scrollState.frame);
         const start = host.scrollLeft;
         const startedAt = performance.now();
         scrollState.frame = requestAnimationFrame((time) => animateCustomLobbyScroll(host, scrollState, start, scrollState.target, startedAt, time));
@@ -1424,9 +1464,6 @@
             <div class="colCards" data-col-cards="${col.key}"></div>
           </section>
         `).join("");
-
-        const customLobbyColumn = els.cardGrid.querySelector('.cardColumn[data-cat="custom"]');
-        customLobbyColumn?.addEventListener("wheel", handleCustomLobbyWheel, { passive: false });
       }
 
       // Reconcile one column's cards against the desired game list, keyed by id:
