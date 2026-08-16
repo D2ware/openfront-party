@@ -316,6 +316,27 @@ test("structural updates preserve the visible lobby column position", () => {
   assert.deepEqual(scrollCalls, [[0, 160]]);
 });
 
+test("an explicit FFA lobby is never labelled a team game by a stale team count", () => {
+  const source = fs.readFileSync(path.join(root, "viewer", "index.html"), "utf8");
+  const start = source.indexOf("function normalizeGame(g) {");
+  const end = source.indexOf("function getLobbyKind(", start);
+  assert.ok(start >= 0 && end > start, "normalizeGame should be present");
+
+  const normalizeGame = Function(`"use strict"; ${source.slice(start, end)}; return normalizeGame;`)();
+  const lobby = (gameConfig) => normalizeGame({ gameID: "x", numClients: 3, gameConfig });
+
+  // A hosted lobby keeps playerTeams around after the host switches back to FFA.
+  const staleTeams = lobby({ gameMode: "FFA", playerTeams: 4, maxPlayers: 40 });
+  assert.equal(staleTeams.kind, "ffa");
+  assert.equal(staleTeams.playersPerTeam, null, "an FFA lobby has no per-team size");
+
+  assert.equal(lobby({ gameMode: "Team", playerTeams: 4, maxPlayers: 40 }).kind, "team");
+  assert.equal(lobby({ gameMode: "Team", playerTeams: 4, maxPlayers: 40 }).playersPerTeam, 10);
+  assert.equal(lobby({ gameMode: "Free For All", playerTeams: "Duos", maxPlayers: 40 }).kind, "ffa");
+  assert.equal(lobby({ playerTeams: "Quads", maxPlayers: 40 }).kind, "team", "a named format still reads as teams");
+  assert.equal(lobby({ maxPlayers: 40 }).kind, "ffa");
+});
+
 test("all custom lobby snapshot data refreshes immediately under the same game ID", () => {
   const source = fs.readFileSync(path.join(root, "viewer", "index.html"), "utf8");
   const start = source.indexOf("const CUSTOM_LOBBY_REFRESH_MS");
