@@ -23,6 +23,7 @@ fs.rmSync(output, { recursive: true, force: true });
 fs.mkdirSync(output, { recursive: true });
 fs.copyFileSync(path.join(root, "viewer", "index.html"), path.join(output, "index.html"));
 fs.copyFileSync(path.join(root, "viewer", "styles.css"), path.join(output, "styles.css"));
+fs.copyFileSync(path.join(root, "viewer", "lobby-wire.js"), path.join(output, "lobby-wire.js"));
 
 const indexPath = path.join(output, "index.html");
 let indexHtml = fs.readFileSync(indexPath, "utf8");
@@ -40,7 +41,7 @@ const styles = fs.readFileSync(stylesPath, "utf8")
 fs.writeFileSync(stylesPath, styles);
 fs.writeFileSync(path.join(output, ".nojekyll"), "");
 
-const version = versionAssets(output, ["styles.css"]);
+const version = versionAssets(output, ["styles.css", "lobby-wire.js"]);
 
 console.log(`GitHub Pages lobby artifact created in ${output}`);
 console.log(`Asset version: ${version}`);

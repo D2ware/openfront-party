@@ -1,0 +1,183 @@
+{
+  "emptyFull": {
+    "hex": "000000",
+    "value": {
+      "type": "full",
+      "serverTime": 0,
+      "games": {}
+    }
+  },
+  "counts": {
+    "hex": "0187d3b2918e33030841624364313233342f085a7a5a7a39393939000851713030577731318001",
+    "value": {
+      "type": "counts",
+      "serverTime": 1756141234567,
+      "counts": {
+        "AbCd1234": 47,
+        "ZzZz9999": 0,
+        "Qq00Ww11": 128
+      }
+    }
+  },
+  "simpleFull": {
+    "hex": "0080c5b0918e33010001030841624364313233342fe099b4918e330100000600002601010001010090036400",
+    "value": {
+      "type": "full",
+      "serverTime": 1756141200000,
+      "games": {
+        "ffa": [
+          {
+            "gameID": "AbCd1234",
+            "numClients": 47,
+            "startsAt": 1756141260000,
+            "gameConfig": {
+              "gameMap": "Europe",
+              "difficulty": "Medium",
+              "donateGold": true,
+              "donateTroops": false,
+              "gameType": "Public",
+              "gameMode": "Free For All",
+              "gameMapSize": "Normal",
+              "nations": "default",
+              "bots": 400,
+              "infiniteGold": false,
+              "infiniteTroops": false,
+              "instantBuild": false,
+              "randomSpawn": true,
+              "maxPlayers": 100
+            },
+            "publicGameType": "ffa"
+          }
+        ]
+      }
+    }
+  },
+  "kitchenSink": {
+    "hex": "00ffffffffffffff0f0400010208616161613030303001fe5fff7cf7057503020101000703052d77dfdd0390a10f0000000000000440009003000208616161613131313108626262623232323201057075622d31e70703057075622d61057075622d62057075622d630fd804030c050f048094ebdc03d79a9999999999b93f0001010308626262623131313120b8cab6918e330300000020000000010101010132000701020003013c086363636332323232030319546f75726e616d656e7420e280942046696e616c20f09f8f8600",
+    "value": {
+      "type": "full",
+      "serverTime": 9007199254740991,
+      "games": {
+        "ffa": [
+          {
+            "gameID": "aaaa0000",
+            "numClients": 1,
+            "gameConfig": {
+              "gameMap": "Yenisei",
+              "difficulty": "Impossible",
+              "donateGold": false,
+              "donateTroops": true,
+              "gameType": "Private",
+              "gameMode": "Team",
+              "rankedType": "2v2",
+              "gameMapSize": "Compact",
+              "doomsdayClock": {
+                "enabled": true,
+                "speed": "veryfast"
+              },
+              "overtime": {
+                "enabled": false,
+                "startMinutes": 45
+              },
+              "publicGameModifiers": {
+                "isCompact": true,
+                "isRandomSpawn": false,
+                "isCrowded": true,
+                "isHardNations": false,
+                "startingGold": 250000,
+                "goldMultiplier": 2.5,
+                "isAlliancesDisabled": true,
+                "isPortsDisabled": false,
+                "isNukesDisabled": true,
+                "isSAMsDisabled": false,
+                "isPeaceTime": true,
+                "isWaterNukes": false,
+                "isDoomsdayClock": true,
+                "isOvertime": true
+              },
+              "nations": 400,
+              "bots": 0,
+              "infiniteGold": true,
+              "infiniteTroops": true,
+              "instantBuild": true,
+              "disableNavMesh": true,
+              "disableAlliances": null,
+              "disableClanTags": false,
+              "liveStatsEnabled": true,
+              "anonymizeNames": true,
+              "nameReveals": [
+                "aaaa1111",
+                "bbbb2222"
+              ],
+              "nameRevealPublicIds": [
+                "pub-1"
+              ],
+              "waterNukes": null,
+              "randomSpawn": false,
+              "maxPlayers": 999,
+              "allowedPublicIds": [
+                "pub-a",
+                "pub-b",
+                "pub-c"
+              ],
+              "maxTimerValue": null,
+              "customAllianceDuration": 15,
+              "startDelay": null,
+              "spawnImmunityDuration": 600,
+              "disabledUnits": [
+                "MIRV",
+                "Atom Bomb",
+                "Factory"
+              ],
+              "playerTeams": "Humans Vs Nations",
+              "goldMultiplier": null,
+              "startingGold": 1000000000,
+              "hostCheats": {
+                "infiniteGold": true,
+                "infiniteTroops": false,
+                "goldMultiplier": 0.1,
+                "startingGold": null
+              }
+            },
+            "publicGameType": "ffa"
+          }
+        ],
+        "team": [
+          {
+            "gameID": "bbbb1111",
+            "numClients": 32,
+            "startsAt": 1756141299000,
+            "gameConfig": {
+              "gameMap": "Achiran",
+              "difficulty": "Easy",
+              "donateGold": true,
+              "donateTroops": true,
+              "gameType": "Public",
+              "gameMode": "Team",
+              "gameMapSize": "Normal",
+              "nations": "disabled",
+              "bots": 50,
+              "infiniteGold": false,
+              "infiniteTroops": false,
+              "instantBuild": false,
+              "randomSpawn": false,
+              "playerTeams": 7
+            },
+            "publicGameType": "team"
+          }
+        ],
+        "special": [],
+        "hosted": [
+          {
+            "gameID": "cccc2222",
+            "numClients": 3,
+            "publicGameType": "hosted",
+            "label": "Tournament — Final 🏆",
+            "accent": "gold",
+            "featured": true
+          }
+        ]
+      }
+    }
+  }
+}
