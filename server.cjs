@@ -24,6 +24,12 @@ const LONG_POLL_MS = 20_000;
 const MATCH_HISTORY_FILE = process.env.MATCH_HISTORY_FILE || path.join(__dirname, "data", "match-history.json");
 const MATCH_HISTORY_URL = process.env.MATCH_HISTORY_URL || "https://d2ware.github.io/openfront-party/history/";
 const MAX_MATCH_HISTORY = 2_000;
+const LAUNCH_COUNTER_FILE = process.env.LAUNCH_COUNTER_FILE || path.join(__dirname, "data", "launch-counter.json");
+// The lobby board is served from GitHub Pages, so anyone can call the counter
+// endpoint directly. One person opening lobbies all evening stays well under
+// this; a script trying to inflate the number does not.
+const LAUNCH_RATE_LIMIT = 40;
+const LAUNCH_RATE_WINDOW_MS = 60 * 60_000;
 
 const rooms = new Map();
 const sessions = new Map();
@@ -59,6 +65,79 @@ function persistMatchHistory() {
   });
   matchHistoryWrite = write;
   return write;
+}
+
+// Board visitors who click a lobby card are counted here, split by calendar
+// month (UTC) so the board can show either window. Only totals are kept: no
+// address, no game id, nothing that ties a count back to a person.
+function loadLaunchCounter() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(LAUNCH_COUNTER_FILE, "utf8"));
+    if (parsed?.version === 1) {
+      const months = {};
+      for (const [key, value] of Object.entries(parsed.months || {})) {
+        if (/^\d{4}-\d{2}$/.test(key) && Number.isFinite(value)) months[key] = Math.max(0, Math.trunc(value));
+      }
+      return { version: 1, total: Math.max(0, Math.trunc(parsed.total) || 0), months };
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") console.error("Could not load the launch counter:", error.message);
+  }
+  return { version: 1, total: 0, months: {} };
+}
+
+const launchCounter = loadLaunchCounter();
+const launchHits = new Map();
+let launchCounterWrite = Promise.resolve();
+
+function persistLaunchCounter() {
+  const contents = `${JSON.stringify(launchCounter, null, 2)}
+`;
+  const write = launchCounterWrite.catch(() => {}).then(async () => {
+    await fs.promises.mkdir(path.dirname(LAUNCH_COUNTER_FILE), { recursive: true });
+    const temporary = `${LAUNCH_COUNTER_FILE}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`;
+    await fs.promises.writeFile(temporary, contents, { encoding: "utf8", mode: 0o600 });
+    await fs.promises.rename(temporary, LAUNCH_COUNTER_FILE);
+  });
+  launchCounterWrite = write;
+  return write;
+}
+
+function launchMonthKey(now = Date.now()) {
+  return new Date(now).toISOString().slice(0, 7);
+}
+
+function launchCounterSnapshot() {
+  const month = launchMonthKey();
+  return { total: launchCounter.total, month: launchCounter.months[month] || 0, monthKey: month };
+}
+
+// nginx appends the peer address to any client-supplied X-Forwarded-For, so the
+// last entry is the one the proxy saw and the only one a caller cannot forge.
+function clientAddress(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",").map((part) => part.trim()).filter(Boolean);
+  return forwarded[forwarded.length - 1] || req.socket.remoteAddress || "unknown";
+}
+
+function allowLaunch(address) {
+  const now = Date.now();
+  for (const [key, entry] of launchHits) if (entry.resetAt <= now) launchHits.delete(key);
+  const entry = launchHits.get(address);
+  if (!entry) {
+    launchHits.set(address, { count: 1, resetAt: now + LAUNCH_RATE_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= LAUNCH_RATE_LIMIT) return false;
+  entry.count += 1;
+  return true;
+}
+
+function recordLaunch() {
+  const month = launchMonthKey();
+  launchCounter.total += 1;
+  launchCounter.months[month] = (launchCounter.months[month] || 0) + 1;
+  persistLaunchCounter().catch((error) => console.error("Could not persist the launch counter:", error.message));
+  return launchCounterSnapshot();
 }
 
 const demoLobbies = [
@@ -983,6 +1062,15 @@ async function handleRequest(req, res) {
       .filter((room) => room.members > 0)
       .sort((a, b) => b.members - a.members || a.code.localeCompare(b.code));
     json(res, 200, { groups }); return;
+  }
+  if (url.pathname === "/api/launches") {
+    if (req.method === "OPTIONS") { json(res, 204, {}); return; }
+    if (req.method === "GET") { json(res, 200, launchCounterSnapshot()); return; }
+    if (req.method === "POST") {
+      if (!allowLaunch(clientAddress(req))) { json(res, 429, { error: "Too many launches from this address." }); return; }
+      json(res, 200, recordLaunch()); return;
+    }
+    json(res, 405, { error: "Use GET or POST." }); return;
   }
   if (url.pathname === "/api/lobbies") { json(res, 200, { source: "demo", updatedAt: new Date().toISOString(), lobbies: demoLobbies }); return; }
   serveFile(req, res);

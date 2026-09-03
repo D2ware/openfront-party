@@ -26,6 +26,17 @@
         <div class="counts">
           <div class="status is-connecting" id="status">Connecting…</div>
           <div><span id="serverTime">—</span></div>
+          <button
+            id="launchCounter"
+            class="launchCounter"
+            type="button"
+            title="Lobbies opened from this board. Click to switch window."
+            hidden
+          >
+            <span id="launchCount">—</span>
+            <span class="launchNoun">launches</span>
+            <span class="launchWindow" id="launchWindow">all time</span>
+          </button>
         </div>
 
         <div class="discordGroup">
@@ -600,6 +611,10 @@
         alertToggle: $("alertToggle"),
         toggleFilters: $("toggleFilters"),
         panelShell: $("panelShell"),
+
+        launchCounter: $("launchCounter"),
+        launchCount: $("launchCount"),
+        launchWindow: $("launchWindow"),
       };
       
       const state = {
@@ -923,11 +938,90 @@
         input.remove();
       }
       
+      // Shared launch counter. The board is served from GitHub Pages, which has
+      // no backend of its own, so the count lives on the relay; a local checkout
+      // talks to whatever relay is serving it instead of the public one.
+      const LAUNCH_API_ORIGIN =
+        location.hostname === "localhost" || location.hostname === "127.0.0.1"
+          ? ""
+          : "https://moss.nonekode.fi";
+
+      const launchStats = {
+        total: null,
+        month: null,
+        window: localStorage.getItem("openfrontLaunchWindow") === "month" ? "month" : "all",
+        counted: new Set(),
+      };
+
+      function renderLaunchCounter() {
+        if (launchStats.total === null) return;
+
+        const isMonth = launchStats.window === "month";
+        els.launchCount.textContent = (isMonth ? launchStats.month : launchStats.total).toLocaleString("en-US");
+        els.launchWindow.textContent = isMonth ? "this month" : "all time";
+        els.launchCounter.hidden = false;
+      }
+
+      function applyLaunchTotals(data) {
+        if (!Number.isFinite(data?.total) || !Number.isFinite(data?.month)) return;
+
+        launchStats.total = data.total;
+        launchStats.month = data.month;
+        renderLaunchCounter();
+      }
+
+      async function refreshLaunchCounter() {
+        try {
+          const response = await fetch(`${LAUNCH_API_ORIGIN}/api/launches`, { cache: "no-store" });
+          if (response.ok) applyLaunchTotals(await response.json());
+        } catch {
+          // The board is fine without the counter: a relay outage just leaves
+          // the pill hidden rather than showing a number nobody can trust.
+        }
+      }
+
+      // Counts a click on a lobby, not a confirmed join — the game itself never
+      // reports back. One id counts once per page load so re-clicking the same
+      // lobby cannot run the number up.
+      function recordLaunch(gameID) {
+        const id = String(gameID || "");
+        if (!id || launchStats.counted.has(id)) return;
+        launchStats.counted.add(id);
+
+        if (launchStats.total !== null) {
+          launchStats.total += 1;
+          launchStats.month += 1;
+          renderLaunchCounter();
+        }
+
+        // No body and no custom headers, so this stays a simple request and the
+        // browser skips the preflight on the way out.
+        fetch(`${LAUNCH_API_ORIGIN}/api/launches`, { method: "POST", keepalive: true })
+          .then((response) => (response.ok ? response.json() : null))
+          .then((data) => data && applyLaunchTotals(data))
+          .catch(() => {});
+      }
+
+      function wireLaunchCounter() {
+        els.launchCounter.addEventListener("click", () => {
+          launchStats.window = launchStats.window === "month" ? "all" : "month";
+          localStorage.setItem("openfrontLaunchWindow", launchStats.window);
+          renderLaunchCounter();
+        });
+
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) refreshLaunchCounter();
+        });
+
+        refreshLaunchCounter();
+      }
+
       function wireActionLinks() {
         // The whole card is the join button.
         const openCard = (e) => {
           const card = e.target.closest(".gameCard[data-join-url]");
           if (!card) return;
+          recordLaunch(card.dataset.gameId);
           window.OPENFRONT_PARTY_OPENFRONT_WINDOW = window.open(card.dataset.joinUrl, "openfront-party-game");
         };
 
@@ -940,6 +1034,12 @@
           if (!e.target.closest(".gameCard[data-join-url]")) return;
           e.preventDefault();
           openCard(e);
+        });
+
+        els.tableRows.addEventListener("click", (e) => {
+          const joinLink = e.target.closest("[data-table-join]");
+          if (!joinLink) return;
+          recordLaunch(joinLink.closest("tr[data-game-id]")?.dataset.gameId);
         });
 
         els.tableRows.addEventListener("click", async (e) => {
@@ -3045,6 +3145,7 @@
       wireInputs();
       setLobbyView(state.view);
       wireActionLinks();
+      wireLaunchCounter();
       updateAlertToggleUI();
       startCustomLobbyRefreshWatch();
       connect();

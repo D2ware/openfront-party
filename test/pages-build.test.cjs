@@ -42,6 +42,13 @@ test("GitHub Pages publishes the standalone OpenFront lobby board", () => {
   assert.doesNotMatch(indexHtml, /Start Delay:/);
   assert.doesNotMatch(indexHtml, /push\("Nations Disabled"\)/);
   assert.match(indexHtml, /href="styles\.css\?v=[a-f0-9]{12}"/);
+  // The published board has no backend of its own, so its launch counter has to
+  // reach the relay by absolute origin.
+  assert.match(indexHtml, /id="launchCounter"/);
+  assert.match(indexHtml, /: "https:\/\/moss\.nonekode\.fi";/);
+  assert.match(indexHtml, /recordLaunch\(card\.dataset\.gameId\)/);
+  assert.match(indexHtml, /fetch\(`\$\{LAUNCH_API_ORIGIN\}\/api\/launches`, \{ method: "POST", keepalive: true \}\)/);
+  assert.match(styles, /\.launchCounter/);
   assert.match(styles, /data-cat="custom"/);
   assert.match(styles, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(styles, /grid-column: 1 \/ -1/);

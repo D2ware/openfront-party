@@ -185,6 +185,52 @@ header {
   color: var(--text);
 }
 
+/* Launch counter: the same pill as its neighbours, but it toggles the window
+   it counts, so it also carries the hover and focus affordances of a button. */
+.launchCounter {
+  /* The base button rule stretches to 100%; this one hugs its label. */
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 35px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.launchCounter:hover {
+  border-color: var(--border2);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.launchCounter:focus-visible {
+  outline: none;
+  border-color: rgba(98, 176, 255, 0.7);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.counts .launchNoun,
+.counts .launchWindow {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.counts .launchWindow::before {
+  content: "·";
+  margin-right: 6px;
+  opacity: 0.55;
+}
+
 #status {
   font-weight: 700;
 }

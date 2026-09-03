@@ -21,9 +21,16 @@ async function startRelay(options = {}) {
   const port = await freePort();
   const dataDir = options.historyFile ? null : fs.mkdtempSync(path.join(os.tmpdir(), "openfront-party-test-"));
   const historyFile = options.historyFile || path.join(dataDir, "match-history.json");
+  const launchFile = path.join(path.dirname(historyFile), "launch-counter.json");
   const child = spawn(process.execPath, ["server.cjs"], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), HOST: "127.0.0.1", MATCH_HISTORY_FILE: historyFile },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      HOST: "127.0.0.1",
+      MATCH_HISTORY_FILE: historyFile,
+      LAUNCH_COUNTER_FILE: launchFile,
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
   await new Promise((resolve, reject) => {
@@ -36,7 +43,7 @@ async function startRelay(options = {}) {
     });
   });
   if (dataDir) child.once("exit", () => fs.rmSync(dataDir, { recursive: true, force: true }));
-  return { child, origin: `http://127.0.0.1:${port}`, wsUrl: `ws://127.0.0.1:${port}`, historyFile };
+  return { child, origin: `http://127.0.0.1:${port}`, wsUrl: `ws://127.0.0.1:${port}`, historyFile, launchFile };
 }
 
 class TestClient {
@@ -486,4 +493,57 @@ test("connected companions launch into an observed lobby and split members recei
   });
   const memberState = action.room.members.find((item) => item.id === memberLink.memberId);
   assert.equal(memberState.catchUpRoundId, splitLaunch.roundId + 1);
+});
+
+async function readWhen(file, predicate, timeoutMs = 4_000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (predicate(parsed)) return parsed;
+    } catch { /* the relay writes it atomically; keep looking until it lands */ }
+    if (Date.now() > deadline) throw new Error(`${file} never reached the expected state.`);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+test("the launch counter adds up, splits by month and survives a restart", async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "openfront-party-launch-"));
+  const historyFile = path.join(dataDir, "match-history.json");
+  const launchFile = path.join(dataDir, "launch-counter.json");
+  const thisMonth = new Date().toISOString().slice(0, 7);
+
+  try {
+    const relay = await startRelay({ historyFile });
+    try {
+      assert.deepEqual(await jsonRequest(relay.origin, "/api/launches"), { total: 0, month: 0, monthKey: thisMonth });
+
+      await jsonRequest(relay.origin, "/api/launches", { method: "POST" });
+      const second = await jsonRequest(relay.origin, "/api/launches", { method: "POST" });
+      assert.equal(second.total, 2);
+      assert.equal(second.month, 2);
+
+      await readWhen(launchFile, (stored) => stored.total === 2);
+    } finally {
+      relay.child.kill();
+    }
+
+    // A month the counter has moved past stays in the all-time total without
+    // showing up in the current month.
+    const stored = JSON.parse(fs.readFileSync(launchFile, "utf8"));
+    stored.total += 5;
+    stored.months["2001-01"] = 5;
+    fs.writeFileSync(launchFile, JSON.stringify(stored));
+
+    const restarted = await startRelay({ historyFile });
+    try {
+      const resumed = await jsonRequest(restarted.origin, "/api/launches");
+      assert.equal(resumed.total, 7, "the total carries across a relay restart");
+      assert.equal(resumed.month, 2, "an older month does not leak into this one");
+    } finally {
+      restarted.child.kill();
+    }
+  } finally {
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
 });
