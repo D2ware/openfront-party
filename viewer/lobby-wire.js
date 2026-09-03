@@ -33,8 +33,10 @@
 (function (global) {
   "use strict";
 
-  // Upstream commit the tables below were verified against.
-  const SCHEMA_REV = "ce949845";
+  // Upstream commit whose public-lobby schema these tables mirror. openfront.io
+  // does not run main verbatim: its build carries c23ea3e7's schema minus the
+  // `trusted` field main has had since 115da032 (see GameConfig below).
+  const SCHEMA_REV = "c23ea3e7";
 
   // --- Enum tables (declaration order = wire ordinal) ----------------------
 
@@ -334,7 +336,8 @@
     f("isPeaceTime", "bool", { opt: true }),
     f("isWaterNukes", "bool", { opt: true }),
     f("isDoomsdayClock", "bool", { opt: true }),
-    f("isOvertime", "bool", { opt: true }),
+    // `isOvertime` lived here until c23ea3e7 made overtime the default for
+    // public FFA games.
   ]);
 
   const HostCheats = obj([
@@ -372,6 +375,10 @@
     f("randomSpawn", "bool"),
     f("maxPlayers", "uint", { opt: true }),
     f("allowedPublicIds", { arr: "str" }, { opt: true }),
+    // main declares `trusted` (optional bool) here, but the live servers do
+    // not send it. Decoding it anyway costs two presence bits and shifts every
+    // later field, which turns the whole snapshot into garbage. Add it back
+    // when production ships trusted-only lobbies.
     f("maxTimerValue", "uint", { opt: true, nul: true }),
     f("customAllianceDuration", "uint", { opt: true, nul: true }),
     f("startDelay", "uint", { opt: true, nul: true }),
