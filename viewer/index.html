@@ -20,6 +20,7 @@
         <div class="headerActions">
           <button id="toggleFilters" class="filtersToggle" type="button">Filters</button>
           <button id="viewToggle" class="viewToggle" type="button">Detailed table</button>
+          <button id="lobbyLimitToggle" class="viewToggle" type="button" title="Show two games per category or all games">Games: 2 / category</button>
           <button id="alertToggle" class="alertToggle" type="button">Alerts: Off</button>
         </div>
 
@@ -606,6 +607,7 @@
         serverTime: $("serverTime"),
         cardGrid: $("cardGrid"),
         viewToggle: $("viewToggle"),
+        lobbyLimitToggle: $("lobbyLimitToggle"),
         tableView: $("tableView"),
         tableRows: $("tableRows"),
         alertToggle: $("alertToggle"),
@@ -654,6 +656,7 @@
         decodeFailures: 0,
         manualDisconnect: false,
 
+        showAllLobbies: localStorage.getItem("openfrontShowAllLobbies") === "true",
         view:
           localStorage.getItem("openfrontLobbyView") === "table"
             ? "table"
@@ -2305,14 +2308,14 @@
         }));
 
         if (state.view === "table") {
-          renderTable(sorted, serverTime);
+          renderTable(limitScheduledLobbies(sorted), serverTime);
           return;
         }
         // OpenFront publishes player-created lobbies in the "hosted" bucket.
         // startsAt only controls the Open/countdown label; it never changes the
         // server-provided FFA, Teams, Special or hosted category.
         const buckets = Object.fromEntries(CARD_COLUMNS.map((column) => [column.key, []]));
-        for (const g of sorted) {
+        for (const g of limitScheduledLobbies(sorted)) {
           const cat = isCustomLobby(g) ? "custom" : (g.raw?.__rawType || g.raw?.publicGameType);
           if (buckets[cat]) buckets[cat].push(g);
         }
@@ -2332,6 +2335,24 @@
         updateLiveFields(sorted, serverTime);
       }
       
+      function limitScheduledLobbies(games) {
+        if (state.showAllLobbies) return games;
+        const counts = new Map();
+        return games.filter((game) => {
+          if (isCustomLobby(game)) return true;
+          const category = game.raw?.__rawType || game.raw?.publicGameType;
+          const count = (counts.get(category) || 0) + 1;
+          counts.set(category, count);
+          return count <= 2;
+        });
+      }
+
+      function updateLobbyLimitLabel() {
+        els.lobbyLimitToggle.textContent = state.showAllLobbies
+          ? "Games: All" : "Games: 2 / category";
+        els.lobbyLimitToggle.setAttribute("aria-pressed", String(state.showAllLobbies));
+      }
+
       function setStatus(text, stateClass) {
         els.status.textContent = text;
         els.status.classList.remove("is-live", "is-connecting", "is-offline");
@@ -3096,6 +3117,13 @@
           setLobbyView(
             state.view === "cards" ? "table" : "cards"
           );
+        });
+        updateLobbyLimitLabel();
+        els.lobbyLimitToggle.addEventListener("click", () => {
+          state.showAllLobbies = !state.showAllLobbies;
+          localStorage.setItem("openfrontShowAllLobbies", String(state.showAllLobbies));
+          updateLobbyLimitLabel();
+          scheduleRender();
         });
       }
       
