@@ -1,6 +1,6 @@
 {
   "emptyFull": {
-    "hex": "000000",
+    "hex": "00000000",
     "value": {
       "type": "full",
       "serverTime": 0,
@@ -20,7 +20,7 @@
     }
   },
   "simpleFull": {
-    "hex": "0080c5b0918e33010001030841624364313233342fe099b4918e330100000600002601010001010090036400",
+    "hex": "000080c5b0918e33010001030841624364313233342fe099b4918e330100000600002901010001010090036400",
     "value": {
       "type": "full",
       "serverTime": 1756141200000,
@@ -53,7 +53,7 @@
     }
   },
   "kitchenSink": {
-    "hex": "00ffffffffffffff0f0400010208616161613030303001fe5fff7cf7057503020101000703052d77dfdd90a10f0000000000000440009003000208616161613131313108626262623232323201057075622d31e70703057075622d61057075622d62057075622d630fd804030c050f048094ebdc03d79a9999999999b93f0001010308626262623131313120b8cab6918e330300000020000000010101010132000701020003013c086363636332323232030319546f75726e616d656e7420e280942046696e616c20f09f8f8600",
+    "hex": "0000ffffffffffffff0f0400010208616161613030303001fe5fffccdd177a03020101000703052d77dfdd90a10f0000000000000440009003000208616161613131313108626262623232323201057075622d31e70703057075622d61057075622d62057075622d630fd804030c050f048094ebdc03d79a9999999999b93f0001010308626262623131313120b8cab6918e330300000080000000010101010132000701020003013c086363636332323232030319546f75726e616d656e7420e280942046696e616c20f09f8f8600",
     "value": {
       "type": "full",
       "serverTime": 9007199254740991,
@@ -177,6 +177,51 @@
           }
         ]
       }
+    }
+  },
+  "currentFull": {
+    "hex": "000780c5b0918e33010001030841624364313233342fe099b4918e3301000036000029010100010100900364002831653937336262353334623862333764386433306338306162323761643133393161376238326461",
+    "value": {
+      "type": "full",
+      "serverTime": 1756141200000,
+      "games": {
+        "ffa": [
+          {
+            "gameID": "AbCd1234",
+            "numClients": 47,
+            "startsAt": 1756141260000,
+            "gameConfig": {
+              "gameMap": "Europe",
+              "difficulty": "Medium",
+              "donateGold": true,
+              "donateTroops": false,
+              "gameType": "Public",
+              "gameMode": "Free For All",
+              "gameMapSize": "Normal",
+              "nations": "default",
+              "bots": 400,
+              "infiniteGold": false,
+              "infiniteTroops": false,
+              "instantBuild": false,
+              "randomSpawn": true,
+              "maxPlayers": 100,
+              "trusted": true
+            },
+            "publicGameType": "ffa"
+          }
+        ]
+      },
+      "gitCommit": "1e973bb534b8b37d8d30c80ab27ad1391a7b82da",
+      "active": true
+    }
+  },
+  "drainingFull": {
+    "hex": "0002cef695a58a3400",
+    "value": {
+      "type": "full",
+      "serverTime": 1789468703566,
+      "games": {},
+      "active": false
     }
   }
 }

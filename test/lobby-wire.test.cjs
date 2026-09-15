@@ -16,6 +16,22 @@ const vectors = JSON.parse(
 
 const bytesOf = (hex) => Uint8Array.from(Buffer.from(hex, "hex"));
 
+test("decodes the September deployment's captured full snapshot", () => {
+  const capture = require("./fixtures/lobby-wire-live-20260915.json");
+  const full = wire.decodeLobbyMessage(Buffer.from(capture.base64, "base64"));
+  assert.equal(full.serverTime, 1789468834490);
+  assert.equal(full.gitCommit, capture.gitCommit);
+  assert.equal(full.active, true);
+  assert.equal(Object.values(full.games).flat().length, 18);
+  assert.equal(full.games.ffa[0].gameConfig.trusted, true);
+  assert.equal(full.games.ffa[0].gameConfig.maxPlayers, 15);
+  assert.equal(full.games.ffa[0].gameConfig.spawnImmunityDuration, 50);
+  assert.deepEqual(full.games.ffa.map((game) => game.gameConfig.gameMap), [
+    "Hecate Strait", "Las Vegas Strip", "Cape Cod", "World Inverted",
+    "Nile Delta", "North America",
+  ]);
+});
+
 test("decodes frames produced by OpenFront's own zbin encoder", () => {
   const names = Object.keys(vectors);
   assert.ok(names.length >= 4, "expected the full set of golden vectors");
@@ -61,12 +77,12 @@ test("an unknown enum ordinal degrades instead of killing the frame", () => {
   // A newly shipped map is the common case: the ordinal lands past the end of
   // GAME_MAP, and everything else about the lobby is still worth rendering.
   const bytes = bytesOf(vectors.simpleFull.hex);
-  const gameMapOffset = bytes.indexOf(38); // "Europe" ordinal in the config body
+  const gameMapOffset = bytes.indexOf(41); // "Europe" ordinal in the config body
   assert.notEqual(gameMapOffset, -1);
-  bytes[gameMapOffset] = 126;
+  bytes[gameMapOffset] = 127;
 
   const decoded = wire.decodeLobbyMessage(bytes);
-  assert.equal(decoded.games.ffa[0].gameConfig.gameMap, "unknown#126");
+  assert.equal(decoded.games.ffa[0].gameConfig.gameMap, "unknown#127");
   assert.equal(decoded.games.ffa[0].gameConfig.difficulty, "Medium");
 });
 
